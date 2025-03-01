@@ -139,15 +139,15 @@
                 </div>
                 <div class="card-body">
                     <div class="list-group">
-                        {% for user in users %}
+                        {% for user_id, username in users.items() %}
                             <div class="list-group-item d-flex justify-content-between align-items-center">
                                 <div class="d-flex align-items-center">
                                     <div class="avatar-circle me-2 bg-{% if loop.index0 < 3 %}{{ ['primary', 'success', 'warning'][loop.index0] }}{% else %}secondary{% endif %}">
-                                        {{ user.username[0]|upper }}
+                                        {{ username[0]|upper }}
                                     </div>
-                                    <span>{{ user.username }}</span>
+                                    <span>{{ username }}</span>
                                 </div>
-                                {% if task.assigned_to == user.id %}
+                                {% if task.assigned_to == user_id %}
                                     <span class="badge bg-primary">Assigned</span>
                                 {% endif %}
                             </div>
