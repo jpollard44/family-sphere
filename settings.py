@@ -65,6 +65,10 @@ class ProductionConfig(Config):
     # In production, ensure a strong secret key is set
     SECRET_KEY = os.environ.get('SECRET_KEY')
     
+    # CSRF settings for production
+    WTF_CSRF_ENABLED = True
+    WTF_CSRF_SSL_STRICT = False  # Allow CSRF tokens to work in both HTTP and HTTPS
+    
     # Additional production settings
     PREFERRED_URL_SCHEME = 'https'
 

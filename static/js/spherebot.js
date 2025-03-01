@@ -18,6 +18,26 @@ document.addEventListener('DOMContentLoaded', function() {
     let chatHistory = [];
     let isExpanded = false;
     
+    /**
+     * Get CSRF token from cookie or meta tag
+     * @returns {string} CSRF token
+     */
+    function getCsrfToken() {
+        // Try to get from cookie first
+        const cookieValue = document.cookie
+            .split('; ')
+            .find(row => row.startsWith('csrf_token='))
+            ?.split('=')[1];
+        
+        if (cookieValue) {
+            return cookieValue;
+        }
+        
+        // Fall back to meta tag
+        const metaTag = document.querySelector('meta[name="csrf-token"]');
+        return metaTag ? metaTag.getAttribute('content') : '';
+    }
+    
     // Initialize
     function init() {
         // Add welcome message
@@ -106,7 +126,7 @@ document.addEventListener('DOMContentLoaded', function() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                'X-CSRFToken': getCsrfToken()
             },
             body: JSON.stringify({ query: message }),
         })

@@ -1,4 +1,4 @@
-from flask import render_template, redirect, url_for, flash, request, jsonify
+from flask import render_template, redirect, url_for, flash, request, jsonify, make_response
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import random
@@ -16,6 +16,16 @@ from models import User, Family, Event, Task, Finance, Chat, Memory, Inventory, 
 @app.context_processor
 def inject_csrf_token():
     return dict(csrf_token=generate_csrf())
+
+# Set CSRF cookie for JavaScript requests
+@app.after_request
+def set_csrf_cookie(response):
+    if 'csrf_token' not in request.cookies:
+        response.set_cookie('csrf_token', generate_csrf(), 
+                           secure=request.is_secure,
+                           httponly=False,
+                           samesite='Lax')
+    return response
 
 # Helper function for SphereBot AI
 def get_spherebot_suggestion(context):

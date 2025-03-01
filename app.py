@@ -11,6 +11,11 @@ load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'default-secret-key')
 
+# Additional CSRF configuration
+app.config['WTF_CSRF_ENABLED'] = True
+app.config['WTF_CSRF_SSL_STRICT'] = False  # Allow CSRF tokens to work in both HTTP and HTTPS
+app.config['WTF_CSRF_METHODS'] = ['POST', 'PUT', 'PATCH', 'DELETE']
+
 # Initialize CSRF protection
 csrf = CSRFProtect(app)
 
