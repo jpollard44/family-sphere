@@ -1,0 +1,397 @@
+{% extends "base.html" %}
+
+{% block title %}Calendar - FamilySphere{% endblock %}
+
+{% block extra_css %}
+<style>
+    .calendar-container {
+        background-color: white;
+        border-radius: 0.5rem;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+    
+    .calendar-header {
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+        border-radius: 0.5rem 0.5rem 0 0;
+    }
+    
+    .calendar-day {
+        border: 1px solid #dee2e6;
+        min-height: 120px;
+    }
+    
+    .calendar-day-header {
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+        padding: 0.5rem;
+        font-weight: bold;
+    }
+    
+    .calendar-day-content {
+        padding: 0.5rem;
+        overflow-y: auto;
+        max-height: 100px;
+    }
+    
+    .calendar-event {
+        background-color: #4e73df;
+        color: white;
+        border-radius: 3px;
+        padding: 2px 5px;
+        margin-bottom: 2px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    .calendar-event:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 .25rem .5rem rgba(0,0,0,.1);
+    }
+    
+    .calendar-day.today {
+        background-color: #e8f4ff;
+    }
+    
+    .calendar-day.other-month {
+        background-color: #f8f9fa;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1 class="display-5">
+            <i class="fas fa-calendar-alt me-2"></i>Family Calendar
+        </h1>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('add_event') }}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i>Add Event
+        </a>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col">
+        <div class="card shadow-sm">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <div>
+                    <button class="btn btn-sm btn-outline-secondary me-2">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <span class="fw-bold">February 2025</span>
+                    <button class="btn btn-sm btn-outline-secondary ms-2">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+                <div>
+                    <button class="btn btn-sm btn-outline-primary">Today</button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="calendar-container">
+                    <div class="row g-0 text-center">
+                        <div class="col calendar-header py-2">Sun</div>
+                        <div class="col calendar-header py-2">Mon</div>
+                        <div class="col calendar-header py-2">Tue</div>
+                        <div class="col calendar-header py-2">Wed</div>
+                        <div class="col calendar-header py-2">Thu</div>
+                        <div class="col calendar-header py-2">Fri</div>
+                        <div class="col calendar-header py-2">Sat</div>
+                    </div>
+                    
+                    <!-- Calendar Grid - This would be dynamically generated in a real app -->
+                    <div class="row g-0">
+                        <div class="col calendar-day other-month">
+                            <div class="calendar-day-header">26</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day other-month">
+                            <div class="calendar-day-header">27</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day other-month">
+                            <div class="calendar-day-header">28</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">1</div>
+                            <div class="calendar-day-content">
+                                <div class="calendar-event">Team Meeting</div>
+                            </div>
+                        </div>
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">2</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">3</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">4</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-0">
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">5</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">6</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">7</div>
+                            <div class="calendar-day-content">
+                                <div class="calendar-event">Doctor Appt</div>
+                            </div>
+                        </div>
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">8</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">9</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">10</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">11</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-0">
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">12</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">13</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">14</div>
+                            <div class="calendar-day-content">
+                                <div class="calendar-event">Valentine's Day</div>
+                                <div class="calendar-event">Dinner</div>
+                            </div>
+                        </div>
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">15</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">16</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">17</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">18</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-0">
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">19</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">20</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">21</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">22</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">23</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">24</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">25</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-0">
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">26</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day">
+                            <div class="calendar-day-header">27</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day today">
+                            <div class="calendar-day-header">28</div>
+                            <div class="calendar-day-content">
+                                <div class="calendar-event">Family Dinner</div>
+                            </div>
+                        </div>
+                        <div class="col calendar-day other-month">
+                            <div class="calendar-day-header">1</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day other-month">
+                            <div class="calendar-day-header">2</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day other-month">
+                            <div class="calendar-day-header">3</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                        <div class="col calendar-day other-month">
+                            <div class="calendar-day-header">4</div>
+                            <div class="calendar-day-content"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="fas fa-list me-2"></i>Upcoming Events</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Event</th>
+                                <th>Created By</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if events %}
+                                {% for event in events %}
+                                    <tr>
+                                        <td>{{ event.date.strftime('%b %d, %Y') }}</td>
+                                        <td>{{ event.time.strftime('%I:%M %p') }}</td>
+                                        <td>
+                                            <strong>{{ event.title }}</strong>
+                                            {% if event.description %}
+                                                <div class="small text-muted">{{ event.description }}</div>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ event.created_by }}</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center">No events found</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <!-- SphereBot Suggestions -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="fas fa-robot me-2"></i>SphereBot Suggestions</h5>
+            </div>
+            <div class="card-body">
+                <div class="spherebot-suggestion">
+                    <p>{{ spherebot_suggestion }}</p>
+                </div>
+                <div class="d-grid gap-2 mt-3">
+                    <button class="btn btn-outline-primary">
+                        <i class="fas fa-magic me-1"></i>Optimize Schedule
+                    </button>
+                    <button class="btn btn-outline-secondary">
+                        <i class="fas fa-bell me-1"></i>Set Smart Reminders
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Add Event -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="fas fa-plus me-2"></i>Quick Add Event</h5>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('add_event') }}" method="POST">
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Title</label>
+                        <input type="text" class="form-control" id="title" name="title" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="date" class="form-label">Date</label>
+                        <input type="date" class="form-control" id="date" name="date" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="time" class="form-label">Time</label>
+                        <input type="time" class="form-control" id="time" name="time" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="2"></textarea>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-calendar-plus me-1"></i>Add Event
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize calendar events
+        const calendarEvents = document.querySelectorAll('.calendar-event');
+        calendarEvents.forEach(event => {
+            event.addEventListener('click', function() {
+                alert('Event details would show here in a modal');
+            });
+        });
+    });
+</script>
+{% endblock %}

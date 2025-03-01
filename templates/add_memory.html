@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}Add Memory - FamilySphere{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Add New Memory</h1>
+        <a href="{{ url_for('memories') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Back to Memories
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Memory Details</h6>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('add_memory') }}" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="title" class="form-label">Title</label>
+                            <input type="text" class="form-control" id="title" name="title" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="date" class="form-label">Date</label>
+                            <input type="date" class="form-control" id="date" name="date" required value="{{ now.strftime('%Y-%m-%d') }}">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" id="description" name="description" rows="4"></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="photo_url" class="form-label">Photo URL</label>
+                            <input type="text" class="form-control" id="photo_url" name="photo_url" placeholder="https://example.com/image.jpg" required>
+                            <small class="form-text text-muted">
+                                Enter a URL to an image. In a production app, this would be a file upload.
+                            </small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label d-block">Preview</label>
+                            <div class="border rounded p-2 text-center bg-light" style="min-height: 200px;">
+                                <img id="preview-image" src="" alt="Preview will appear here" class="img-fluid d-none" style="max-height: 300px;">
+                                <div id="preview-placeholder" class="text-muted py-5">
+                                    <i class="fas fa-image fa-3x mb-3"></i>
+                                    <p>Image preview will appear here</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Share with</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="shareWithAll" name="share_with_all" checked>
+                                <label class="form-check-label" for="shareWithAll">
+                                    Share with all family members
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Save Memory
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const photoUrlInput = document.getElementById('photo_url');
+        const previewImage = document.getElementById('preview-image');
+        const previewPlaceholder = document.getElementById('preview-placeholder');
+        
+        // Update preview when URL changes
+        photoUrlInput.addEventListener('input', updatePreview);
+        photoUrlInput.addEventListener('paste', function() {
+            // Small delay to allow paste to complete
+            setTimeout(updatePreview, 100);
+        });
+        
+        function updatePreview() {
+            const url = photoUrlInput.value.trim();
+            if (url) {
+                previewImage.src = url;
+                previewImage.classList.remove('d-none');
+                previewPlaceholder.classList.add('d-none');
+                
+                // Handle image load error
+                previewImage.onerror = function() {
+                    previewImage.classList.add('d-none');
+                    previewPlaceholder.classList.remove('d-none');
+                    previewPlaceholder.innerHTML = '<i class="fas fa-exclamation-triangle fa-3x mb-3 text-warning"></i><p>Invalid image URL</p>';
+                };
+                
+                // Reset on successful load
+                previewImage.onload = function() {
+                    previewPlaceholder.innerHTML = '<i class="fas fa-image fa-3x mb-3"></i><p>Image preview will appear here</p>';
+                };
+            } else {
+                previewImage.classList.add('d-none');
+                previewPlaceholder.classList.remove('d-none');
+            }
+        }
+    });
+</script>
+{% endblock %}

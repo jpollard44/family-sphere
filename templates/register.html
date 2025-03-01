@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Register - FamilySphere{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white text-center">
+                <h2 class="mb-0"><i class="fas fa-home me-2"></i>FamilySphere</h2>
+                <p class="mb-0">Family Management Made Simple</p>
+            </div>
+            <div class="card-body p-4">
+                <h3 class="card-title text-center mb-4">Create an Account</h3>
+                
+                <ul class="nav nav-tabs mb-4" id="registerTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="join-tab" data-bs-toggle="tab" data-bs-target="#join" type="button" role="tab">Join Family</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="create-tab" data-bs-toggle="tab" data-bs-target="#create" type="button" role="tab">Create Family</button>
+                    </li>
+                </ul>
+                
+                <div class="tab-content" id="registerTabContent">
+                    <!-- Join Existing Family Tab -->
+                    <div class="tab-pane fade show active" id="join" role="tabpanel">
+                        <form method="POST" action="{{ url_for('register') }}">
+                            <div class="mb-3">
+                                <label for="username" class="form-label">Username</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-user"></i></span>
+                                    <input type="text" class="form-control" id="username" name="username" required>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="password" class="form-label">Password</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                                    <input type="password" class="form-control" id="password" name="password" required>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="confirm_password" class="form-label">Confirm Password</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                                    <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="family_code" class="form-label">Family Code</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-key"></i></span>
+                                    <input type="text" class="form-control" id="family_code" name="family_code" required>
+                                </div>
+                                <div class="form-text">Enter the code provided by your family admin.</div>
+                            </div>
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary btn-lg">Join Family</button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Create New Family Tab -->
+                    <div class="tab-pane fade" id="create" role="tabpanel">
+                        <form method="POST" action="{{ url_for('register') }}">
+                            <input type="hidden" name="create_family" value="1">
+                            <div class="mb-3">
+                                <label for="username_create" class="form-label">Username</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-user"></i></span>
+                                    <input type="text" class="form-control" id="username_create" name="username" required>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="password_create" class="form-label">Password</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                                    <input type="password" class="form-control" id="password_create" name="password" required>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="confirm_password_create" class="form-label">Confirm Password</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                                    <input type="password" class="form-control" id="confirm_password_create" name="confirm_password" required>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="family_name" class="form-label">Family Name</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-users"></i></span>
+                                    <input type="text" class="form-control" id="family_name" name="family_name" required>
+                                </div>
+                            </div>
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary btn-lg">Create Family</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer text-center">
+                <p class="mb-0">Already have an account? <a href="{{ url_for('login') }}">Login</a></p>
+            </div>
+        </div>
+        
+        <!-- SphereBot Help Card -->
+        <div class="card mt-4 shadow-sm spherebot-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="spherebot-avatar me-3">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <div>
+                        <h5 class="card-title mb-1">SphereBot</h5>
+                        <p class="card-text">Need help? I can guide you through registration. Create a new family if you're the first member, or join an existing one with a family code.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

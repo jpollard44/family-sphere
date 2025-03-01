@@ -1,0 +1,319 @@
+{% extends "base.html" %}
+
+{% block title %}Family - FamilySphere{% endblock %}
+
+{% block extra_css %}
+<style>
+    .family-card {
+        transition: transform 0.3s;
+        cursor: pointer;
+    }
+    .family-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    .family-member-img {
+        width: 100px;
+        height: 100px;
+        object-fit: cover;
+        border-radius: 50%;
+        margin-bottom: 15px;
+    }
+    .role-badge {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+    }
+    .member-details {
+        margin-top: 20px;
+    }
+    .member-stats {
+        display: flex;
+        justify-content: space-around;
+        margin-top: 15px;
+    }
+    .stat-item {
+        text-align: center;
+    }
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #4e73df;
+    }
+    .stat-label {
+        font-size: 0.8rem;
+        color: #858796;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Family Members</h1>
+        <div>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#inviteFamilyModal">
+                <i class="fas fa-user-plus me-2"></i>Invite Member
+            </button>
+            <button class="btn btn-info ms-2" data-bs-toggle="modal" data-bs-target="#familyCodeModal">
+                <i class="fas fa-key me-2"></i>Family Code
+            </button>
+        </div>
+    </div>
+
+    <!-- Family Info Card -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+            <h6 class="m-0 font-weight-bold text-primary">{{ family.name }}</h6>
+            <span class="badge bg-primary">{{ family.members|length }} Members</span>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Family Code:</strong> <span class="text-primary">{{ family.code }}</span></p>
+                    <p><strong>Admin:</strong> 
+                        {% for member in family.members %}
+                            {% if member.role == 'Admin' %}
+                                {{ member.username }}
+                                {% if not loop.last and loop.index < loop.length %}
+                                    {% if loop.index == loop.length - 1 %}
+                                        and 
+                                    {% else %}
+                                        , 
+                                    {% endif %}
+                                {% endif %}
+                            {% endif %}
+                        {% endfor %}
+                    </p>
+                </div>
+                <div class="col-md-6">
+                    <div class="d-flex justify-content-end">
+                        <a href="{{ url_for('settings') }}" class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-cog me-1"></i>Family Settings
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Family Members -->
+    <div class="row">
+        {% for member in family.members %}
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card shadow family-card h-100" data-bs-toggle="modal" data-bs-target="#memberModal{{ member.id }}">
+                <div class="card-body text-center position-relative">
+                    <span class="badge {% if member.role == 'Admin' %}bg-danger{% elif member.role == 'Member' %}bg-primary{% elif member.role == 'Kid' %}bg-success{% else %}bg-secondary{% endif %} role-badge">
+                        {{ member.role }}
+                    </span>
+                    <img src="{{ url_for('static', filename='images/default-profile.png') }}" alt="{{ member.username }}" class="family-member-img">
+                    <h5 class="card-title">{{ member.username }}</h5>
+                    <div class="member-stats">
+                        <div class="stat-item">
+                            <div class="stat-value">{{ member.tasks|selectattr('status', 'equalto', 'Completed')|list|length }}</div>
+                            <div class="stat-label">Tasks</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">{{ member.chats|length }}</div>
+                            <div class="stat-label">Messages</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">{{ member.created_events|length }}</div>
+                            <div class="stat-label">Events</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Member Detail Modals -->
+{% for member in family.members %}
+<div class="modal fade" id="memberModal{{ member.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ member.username }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-4 text-center">
+                        <img src="{{ url_for('static', filename='images/default-profile.png') }}" alt="{{ member.username }}" class="img-fluid rounded-circle mb-3" style="width: 150px; height: 150px; object-fit: cover;">
+                        <h4>{{ member.username }}</h4>
+                        <span class="badge {% if member.role == 'Admin' %}bg-danger{% elif member.role == 'Member' %}bg-primary{% elif member.role == 'Kid' %}bg-success{% else %}bg-secondary{% endif %} mb-3">
+                            {{ member.role }}
+                        </span>
+                    </div>
+                    <div class="col-md-8">
+                        <ul class="nav nav-tabs" id="memberTab{{ member.id }}" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="tasks-tab{{ member.id }}" data-bs-toggle="tab" data-bs-target="#tasks{{ member.id }}" type="button" role="tab">Tasks</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="events-tab{{ member.id }}" data-bs-toggle="tab" data-bs-target="#events{{ member.id }}" type="button" role="tab">Events</button>
+                            </li>
+                            {% if current_user.role == 'Admin' or current_user.id == member.id %}
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="health-tab{{ member.id }}" data-bs-toggle="tab" data-bs-target="#health{{ member.id }}" type="button" role="tab">Health</button>
+                            </li>
+                            {% endif %}
+                        </ul>
+                        <div class="tab-content mt-3" id="memberTabContent{{ member.id }}">
+                            <div class="tab-pane fade show active" id="tasks{{ member.id }}" role="tabpanel">
+                                {% if member.tasks %}
+                                <div class="list-group">
+                                    {% for task in member.tasks %}
+                                    <div class="list-group-item list-group-item-action">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h5 class="mb-1">{{ task.title }}</h5>
+                                            <small>Due: {{ task.due_date.strftime('%m/%d/%Y') }}</small>
+                                        </div>
+                                        <p class="mb-1">{{ task.description }}</p>
+                                        <small class="text-muted">Status: 
+                                            <span class="badge {% if task.status == 'Completed' %}bg-success{% else %}bg-warning{% endif %}">
+                                                {{ task.status }}
+                                            </span>
+                                        </small>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <p class="text-muted">No tasks assigned.</p>
+                                {% endif %}
+                            </div>
+                            <div class="tab-pane fade" id="events{{ member.id }}" role="tabpanel">
+                                {% if member.created_events %}
+                                <div class="list-group">
+                                    {% for event in member.created_events %}
+                                    <div class="list-group-item list-group-item-action">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h5 class="mb-1">{{ event.title }}</h5>
+                                            <small>{{ event.date.strftime('%m/%d/%Y') }} at {{ event.time.strftime('%I:%M %p') }}</small>
+                                        </div>
+                                        <p class="mb-1">{{ event.description }}</p>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <p class="text-muted">No events created.</p>
+                                {% endif %}
+                            </div>
+                            {% if current_user.role == 'Admin' or current_user.id == member.id %}
+                            <div class="tab-pane fade" id="health{{ member.id }}" role="tabpanel">
+                                {% if member.health_records %}
+                                <div class="list-group">
+                                    {% for record in member.health_records %}
+                                    <div class="list-group-item list-group-item-action">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h5 class="mb-1">{{ record.medication }}</h5>
+                                            <small>Reminder: {{ record.reminder_time.strftime('%I:%M %p') }}</small>
+                                        </div>
+                                        <p class="mb-1">Dosage: {{ record.dosage }}</p>
+                                        <p class="mb-1">Frequency: {{ record.frequency }}</p>
+                                        {% if record.notes %}
+                                        <small class="text-muted">Notes: {{ record.notes }}</small>
+                                        {% endif %}
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <p class="text-muted">No health records available.</p>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                {% if current_user.role == 'Admin' and current_user.id != member.id %}
+                <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#editMemberModal{{ member.id }}">
+                    <i class="fas fa-edit me-1"></i>Edit Member
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- Invite Family Modal -->
+<div class="modal fade" id="inviteFamilyModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Invite Family Member</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Share your family code with new members:</p>
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" value="{{ family.code }}" id="familyCodeInput" readonly>
+                    <button class="btn btn-outline-secondary" type="button" onclick="copyFamilyCode()">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                </div>
+                <p class="text-muted">New members can use this code when registering to join your family.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Family Code Modal -->
+<div class="modal fade" id="familyCodeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Your Family Code</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <h2 class="display-4 text-primary mb-4">{{ family.code }}</h2>
+                <p>Share this code with family members you want to invite to FamilySphere.</p>
+                <button class="btn btn-outline-primary" onclick="copyFamilyCode()">
+                    <i class="fas fa-copy me-1"></i>Copy Code
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SphereBot AI Suggestions -->
+<div class="spherebot-bubble" id="spherebot-bubble">
+    <div class="spherebot-icon">
+        <i class="fas fa-robot"></i>
+    </div>
+    <div class="spherebot-content">
+        <h6>SphereBot Suggestion</h6>
+        <p>{{ spherebot_suggestion }}</p>
+    </div>
+    <button class="spherebot-close" onclick="closeSphereBot()">
+        <i class="fas fa-times"></i>
+    </button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function copyFamilyCode() {
+        var copyText = document.getElementById("familyCodeInput");
+        copyText.select();
+        copyText.setSelectionRange(0, 99999);
+        navigator.clipboard.writeText(copyText.value);
+        
+        // Show toast or alert
+        alert("Family code copied to clipboard!");
+    }
+    
+    function closeSphereBot() {
+        document.getElementById('spherebot-bubble').style.display = 'none';
+    }
+</script>
+{% endblock %}

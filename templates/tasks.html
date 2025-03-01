@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+
+{% block title %}Tasks - FamilySphere{% endblock %}
+
+{% block extra_css %}
+<style>
+    .task-row {
+        transition: background-color 0.2s ease, transform 0.2s ease;
+    }
+    
+    .task-row:hover {
+        background-color: rgba(0, 123, 255, 0.05);
+        transform: translateX(5px);
+    }
+    
+    .task-card {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        border: 1px solid rgba(0,0,0,.125);
+        overflow: hidden;
+    }
+    
+    .task-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 .5rem 1rem rgba(0,0,0,.15);
+    }
+    
+    .bid-form .btn {
+        transition: all 0.2s ease;
+    }
+    
+    .bid-form .btn:hover {
+        transform: scale(1.05);
+    }
+    
+    .avatar-circle {
+        transition: transform 0.2s ease;
+    }
+    
+    .avatar-circle:hover {
+        transform: scale(1.1);
+    }
+    
+    .filter-btn.active {
+        position: relative;
+    }
+    
+    .filter-btn.active::after {
+        content: '';
+        position: absolute;
+        bottom: -5px;
+        left: 0;
+        width: 100%;
+        height: 2px;
+        background-color: var(--bs-primary);
+        animation: slideIn 0.3s ease;
+    }
+    
+    @keyframes slideIn {
+        from { width: 0; left: 50%; }
+        to { width: 100%; left: 0; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1 class="display-5">
+            <i class="fas fa-tasks me-2"></i>Family Tasks
+        </h1>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('add_task') }}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i>Add Task
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Family Tasks -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-list me-2"></i>All Family Tasks</h5>
+                <div>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-primary active" id="filter-all">All</button>
+                        <button type="button" class="btn btn-outline-primary" id="filter-pending">Pending</button>
+                        <button type="button" class="btn btn-outline-primary" id="filter-completed">Completed</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if pending_tasks or completed_tasks %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Task</th>
+                                    <th>Due Date</th>
+                                    <th>Assigned To</th>
+                                    <th>Points</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tasks-table-body">
+                                {% for task in pending_tasks + completed_tasks %}
+                                    <tr class="task-row {% if task.status == 'Completed' %}task-completed{% else %}task-pending{% endif %}" data-task-id="{{ task.id }}" style="cursor: pointer;">
+                                        <td onclick="window.location.href='{{ url_for('task_detail', task_id=task.id) }}';">
+                                            <strong>{{ task.title }}</strong>
+                                            {% if task.description %}
+                                                <div class="small text-muted">{{ task.description }}</div>
+                                            {% endif %}
+                                        </td>
+                                        <td onclick="window.location.href='{{ url_for('task_detail', task_id=task.id) }}';">{{ task.due_date }}</td>
+                                        <td onclick="window.location.href='{{ url_for('task_detail', task_id=task.id) }}';">
+                                            {% if task.assigned_to %}
+                                                {{ user_map.get(task.assigned_to, 'Unknown') }}
+                                            {% else %}
+                                                <span class="text-muted">Unassigned</span>
+                                            {% endif %}
+                                        </td>
+                                        <td onclick="window.location.href='{{ url_for('task_detail', task_id=task.id) }}';">
+                                            {% if task.points and task.points > 0 %}
+                                                <span class="badge bg-success">{{ task.points }} pts</span>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td onclick="window.location.href='{{ url_for('task_detail', task_id=task.id) }}';">
+                                            {% if task.status == "Pending" %}
+                                                <span class="badge bg-warning">Pending</span>
+                                            {% else %}
+                                                <span class="badge bg-success">Completed</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if task.status == "Pending" and task.assigned_to == current_user.id %}
+                                                <form method="POST" action="{{ url_for('complete_task', task_id=task.id) }}" class="d-inline">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Complete Task">
+                                                        <i class="fas fa-check"></i>
+                                                    </button>
+                                                </form>
+                                            {% endif %}
+                                            <a href="{{ url_for('edit_task', task_id=task.id) }}" class="btn btn-sm btn-outline-primary" title="Edit Task">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <form method="POST" action="{{ url_for('delete_task', task_id=task.id) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this task?');">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Task">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <div class="mb-3">
+                            <i class="fas fa-clipboard-list fa-3x text-muted"></i>
+                        </div>
+                        <h5>No tasks found</h5>
+                        <p class="text-muted">Create your first task to get started!</p>
+                        <a href="{{ url_for('add_task') }}" class="btn btn-primary">
+                            <i class="fas fa-plus me-1"></i>Add Task
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Task Auction -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="fas fa-gavel me-2"></i>Task Auction</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-4">Bid on unassigned tasks using your points. The lowest bidder gets the task!</p>
+                
+                <div class="row g-4">
+                    {% set unassigned_tasks = pending_tasks|selectattr('assigned_to', 'none')|list %}
+                    {% if unassigned_tasks %}
+                        {% for task in unassigned_tasks %}
+                            <div class="col-md-6">
+                                <div class="card task-card position-relative">
+                                    <div class="task-points">{{ task.points|default(0) }}</div>
+                                    <div class="card-body">
+                                        <h5 class="card-title">{{ task.title }}</h5>
+                                        <p class="card-text text-muted small">Due: {{ task.due_date }}</p>
+                                        <form action="{{ url_for('bid_task', task_id=task.id) }}" method="POST" class="bid-form">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div class="input-group input-group-sm" style="max-width: 120px;">
+                                                    <button class="btn btn-outline-secondary decrease-bid" type="button">-</button>
+                                                    <input type="number" name="bid_points" class="form-control text-center" value="{{ task.points|default(0) - 1 }}" min="1" max="100">
+                                                    <button class="btn btn-outline-secondary increase-bid" type="button">+</button>
+                                                </div>
+                                                <button type="submit" class="btn btn-sm btn-primary">Bid</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="col-12">
+                            <div class="text-center py-4">
+                                <div class="mb-3">
+                                    <i class="fas fa-gavel fa-3x text-muted"></i>
+                                </div>
+                                <h5>No tasks available for auction</h5>
+                                <p class="text-muted">Check back later or create unassigned tasks</p>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <!-- My Tasks -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="fas fa-user-check me-2"></i>My Tasks</h5>
+            </div>
+            <div class="card-body">
+                {% set my_tasks = pending_tasks|selectattr('assigned_to', 'equalto', current_user.id)|list %}
+                {% if my_tasks %}
+                    <ul class="list-group list-group-flush">
+                        {% for task in my_tasks %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center border-0">
+                                <div>
+                                    <strong>{{ task.title }}</strong>
+                                    <div class="small text-muted">Due: {{ task.due_date }}</div>
+                                </div>
+                                <div>
+                                    {% if task.points and task.points > 0 %}
+                                        <span class="badge bg-success me-2">{{ task.points }} pts</span>
+                                    {% endif %}
+                                    <form method="POST" action="{{ url_for('complete_task', task_id=task.id) }}" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn btn-sm btn-success rounded-circle" title="Mark as Complete">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <div class="text-center py-4">
+                        <div class="mb-3">
+                            <i class="fas fa-check-circle fa-3x text-muted"></i>
+                        </div>
+                        <h5>No tasks assigned to you</h5>
+                        <p class="text-muted">You're all caught up!</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Points Leaderboard -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="fas fa-trophy me-2"></i>Points Leaderboard</h5>
+            </div>
+            <div class="card-body">
+                {% if users %}
+                    <ul class="list-group list-group-flush">
+                        {% for user in users|sort(attribute='points', reverse=true) %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center border-0">
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar-circle me-2 bg-{% if loop.index0 < 3 %}{{ ['primary', 'success', 'warning'][loop.index0] }}{% else %}secondary{% endif %}">
+                                        {{ user.username[0]|upper }}
+                                    </div>
+                                    <span>{{ user.username }}</span>
+                                </div>
+                                <span class="badge bg-primary rounded-pill">{{ user.points|default(0) }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <div class="text-center py-4">
+                        <div class="mb-3">
+                            <i class="fas fa-trophy fa-3x text-muted"></i>
+                        </div>
+                        <h5>No points data available</h5>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Task filtering
+        const filterAll = document.getElementById('filter-all');
+        const filterPending = document.getElementById('filter-pending');
+        const filterCompleted = document.getElementById('filter-completed');
+        const taskRows = document.querySelectorAll('.task-row');
+        
+        filterAll.addEventListener('click', function() {
+            taskRows.forEach(row => row.style.display = '');
+            setActiveFilter(this);
+        });
+        
+        filterPending.addEventListener('click', function() {
+            taskRows.forEach(row => {
+                if (row.classList.contains('task-pending')) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            setActiveFilter(this);
+        });
+        
+        filterCompleted.addEventListener('click', function() {
+            taskRows.forEach(row => {
+                if (row.classList.contains('task-completed')) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            setActiveFilter(this);
+        });
+        
+        function setActiveFilter(element) {
+            [filterAll, filterPending, filterCompleted].forEach(el => {
+                el.classList.remove('active');
+            });
+            element.classList.add('active');
+        }
+        
+        // Bid increment/decrement
+        document.querySelectorAll('.decrease-bid').forEach(button => {
+            button.addEventListener('click', function() {
+                const input = this.nextElementSibling;
+                if (parseInt(input.value) > parseInt(input.min)) {
+                    input.value = parseInt(input.value) - 1;
+                }
+            });
+        });
+        
+        document.querySelectorAll('.increase-bid').forEach(button => {
+            button.addEventListener('click', function() {
+                const input = this.previousElementSibling;
+                if (parseInt(input.value) < parseInt(input.max)) {
+                    input.value = parseInt(input.value) + 1;
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - FamilySphere{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Settings</h1>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">User Settings</h6>
+                    <span class="badge bg-primary">{{ current_user.role }}</span>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('settings') }}">
+                        <div class="mb-4">
+                            <h5 class="mb-3">Appearance</h5>
+                            <div class="mb-3">
+                                <label for="theme" class="form-label">Theme</label>
+                                <select class="form-select" id="theme" name="theme">
+                                    <option value="light" {% if settings and settings.theme == 'light' %}selected{% endif %}>Light</option>
+                                    <option value="dark" {% if settings and settings.theme == 'dark' %}selected{% endif %}>Dark</option>
+                                    <option value="system" {% if settings and settings.theme == 'system' %}selected{% endif %}>System Default</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="dashboard_widgets" class="form-label">Dashboard Widgets</label>
+                                <div class="form-text mb-2">Select which widgets to display on your dashboard</div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="widget_calendar" name="dashboard_widgets" value="calendar" 
+                                                {% if settings and settings.dashboard_widgets and 'calendar' in settings.dashboard_widgets.split(',') %}checked{% endif %}>
+                                            <label class="form-check-label" for="widget_calendar">
+                                                Calendar
+                                            </label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="widget_tasks" name="dashboard_widgets" value="tasks"
+                                                {% if settings and settings.dashboard_widgets and 'tasks' in settings.dashboard_widgets.split(',') %}checked{% endif %}>
+                                            <label class="form-check-label" for="widget_tasks">
+                                                Tasks
+                                            </label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="widget_chat" name="dashboard_widgets" value="chat"
+                                                {% if settings and settings.dashboard_widgets and 'chat' in settings.dashboard_widgets.split(',') %}checked{% endif %}>
+                                            <label class="form-check-label" for="widget_chat">
+                                                Chat
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="widget_finances" name="dashboard_widgets" value="finances"
+                                                {% if settings and settings.dashboard_widgets and 'finances' in settings.dashboard_widgets.split(',') %}checked{% endif %}>
+                                            <label class="form-check-label" for="widget_finances">
+                                                Finances
+                                            </label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="widget_memories" name="dashboard_widgets" value="memories"
+                                                {% if settings and settings.dashboard_widgets and 'memories' in settings.dashboard_widgets.split(',') %}checked{% endif %}>
+                                            <label class="form-check-label" for="widget_memories">
+                                                Memories
+                                            </label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="widget_health" name="dashboard_widgets" value="health"
+                                                {% if settings and settings.dashboard_widgets and 'health' in settings.dashboard_widgets.split(',') %}checked{% endif %}>
+                                            <label class="form-check-label" for="widget_health">
+                                                Health
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <h5 class="mb-3">Privacy & Notifications</h5>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="notifications" name="notifications"
+                                    {% if settings and settings.notifications %}checked{% endif %}>
+                                <label class="form-check-label" for="notifications">
+                                    Enable Notifications
+                                </label>
+                                <div class="form-text">Receive notifications about family activities</div>
+                            </div>
+                            
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="location_sharing" name="location_sharing"
+                                    {% if settings and settings.location_sharing %}checked{% endif %}>
+                                <label class="form-check-label" for="location_sharing">
+                                    Location Sharing
+                                </label>
+                                <div class="form-text">Share your location with family members</div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <h5 class="mb-3">SphereBot AI</h5>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="spherebot_enabled" name="spherebot_enabled"
+                                    {% if settings and settings.spherebot_enabled %}checked{% endif %}>
+                                <label class="form-check-label" for="spherebot_enabled">
+                                    Enable SphereBot
+                                </label>
+                                <div class="form-text">Get AI-powered suggestions and assistance</div>
+                            </div>
+                            
+                            <div class="alert alert-info">
+                                <div class="d-flex">
+                                    <div class="me-3">
+                                        <i class="fas fa-robot fa-2x"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="alert-heading">About SphereBot</h6>
+                                        <p class="mb-0">SphereBot uses AI to analyze your family data and provide helpful suggestions. Your data is processed securely and never shared with third parties.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <h5 class="mb-3">Account</h5>
+                            <div class="mb-3">
+                                <label for="username" class="form-label">Username</label>
+                                <input type="text" class="form-control" id="username" value="{{ current_user.username }}" disabled>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="family" class="form-label">Family</label>
+                                <input type="text" class="form-control" id="family" value="{{ current_user.family.name }}" disabled>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="role" class="form-label">Role</label>
+                                <input type="text" class="form-control" id="role" value="{{ current_user.role }}" disabled>
+                            </div>
+                            
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
+                                    Change Password
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Save Settings
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Change Password Modal -->
+<div class="modal fade" id="changePasswordModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Change Password</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" action="{{ url_for('change_password') }}" id="passwordForm">
+                    <div class="mb-3">
+                        <label for="current_password" class="form-label">Current Password</label>
+                        <input type="password" class="form-control" id="current_password" name="current_password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="new_password" class="form-label">New Password</label>
+                        <input type="password" class="form-control" id="new_password" name="new_password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirm_password" class="form-label">Confirm New Password</label>
+                        <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                        <div id="password-feedback" class="invalid-feedback">
+                            Passwords do not match
+                        </div>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary" id="changePasswordBtn">Change Password</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Password confirmation validation
+        const newPassword = document.getElementById('new_password');
+        const confirmPassword = document.getElementById('confirm_password');
+        const passwordForm = document.getElementById('passwordForm');
+        const changePasswordBtn = document.getElementById('changePasswordBtn');
+        
+        function validatePassword() {
+            if (newPassword.value !== confirmPassword.value) {
+                confirmPassword.classList.add('is-invalid');
+                changePasswordBtn.disabled = true;
+                return false;
+            } else {
+                confirmPassword.classList.remove('is-invalid');
+                changePasswordBtn.disabled = false;
+                return true;
+            }
+        }
+        
+        if (newPassword && confirmPassword) {
+            newPassword.addEventListener('input', validatePassword);
+            confirmPassword.addEventListener('input', validatePassword);
+            
+            passwordForm.addEventListener('submit', function(e) {
+                if (!validatePassword()) {
+                    e.preventDefault();
+                }
+            });
+        }
+        
+        // Handle dashboard widget checkboxes
+        const widgetCheckboxes = document.querySelectorAll('input[name="dashboard_widgets"]');
+        const widgetValues = [];
+        
+        widgetCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', updateWidgetValues);
+        });
+        
+        function updateWidgetValues() {
+            widgetValues.length = 0;
+            widgetCheckboxes.forEach(checkbox => {
+                if (checkbox.checked) {
+                    widgetValues.push(checkbox.value);
+                }
+            });
+            
+            // Create hidden input with comma-separated values
+            let hiddenInput = document.getElementById('widget_values');
+            if (!hiddenInput) {
+                hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                hiddenInput.id = 'widget_values';
+                hiddenInput.name = 'dashboard_widgets';
+                passwordForm.appendChild(hiddenInput);
+            }
+            hiddenInput.value = widgetValues.join(',');
+        }
+    });
+</script>
+{% endblock %}

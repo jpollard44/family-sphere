@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+
+{% block title %}Invite Family Member - FamilySphere{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Invite Family Member</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <h5>Invitation Link</h5>
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" value="{{ invitation_link }}" id="invitation-link" readonly>
+                            <button class="btn btn-outline-secondary" type="button" onclick="copyInvitationLink()">Copy</button>
+                        </div>
+                        <p class="small">Share this link with family members you want to invite.</p>
+                    </div>
+
+                    <h5 class="mt-4">Send Email Invitation</h5>
+                    <form method="POST" action="{{ url_for('invite') }}">
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email Address</label>
+                            <input type="email" class="form-control" id="email" name="email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="role" class="form-label">Role</label>
+                            <select class="form-control" id="role" name="role" required>
+                                <option value="">-- Select Role --</option>
+                                <option value="Member">Member</option>
+                                <option value="Kid">Kid</option>
+                                <option value="Extended">Extended Family</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="message" class="form-label">Personal Message (optional)</label>
+                            <textarea class="form-control" id="message" name="message" rows="3"></textarea>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('settings') }}" class="btn btn-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary">Send Invitation</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyInvitationLink() {
+    var copyText = document.getElementById("invitation-link");
+    copyText.select();
+    copyText.setSelectionRange(0, 99999); /* For mobile devices */
+    document.execCommand("copy");
+    
+    // Show a temporary "Copied!" message
+    var button = document.querySelector("button.btn-outline-secondary");
+    var originalText = button.innerHTML;
+    button.innerHTML = "Copied!";
+    setTimeout(function() {
+        button.innerHTML = originalText;
+    }, 2000);
+}
+</script>
+{% endblock %}

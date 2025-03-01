@@ -1,0 +1,935 @@
+/* FamilySphere Custom Styles */
+
+:root {
+    /* Light mode colors */
+    --primary-color: #4e73df;
+    --primary-dark: #3a56a5;
+    --primary-light: #7c97f5;
+    --secondary-color: #1cc88a;
+    --secondary-dark: #169a69;
+    --secondary-light: #4dd8a9;
+    --danger-color: #e74a3b;
+    --warning-color: #f6c23e;
+    --info-color: #36b9cc;
+    --dark-color: #5a5c69;
+    --light-color: #f8f9fa;
+    --white-color: #fff;
+    --gray-100: #f8f9fa;
+    --gray-200: #eaecf4;
+    --gray-300: #dddfeb;
+    --gray-400: #d1d3e2;
+    --gray-500: #b7b9cc;
+    --gray-600: #858796;
+    --gray-700: #6e707e;
+    --gray-800: #5a5c69;
+    --gray-900: #3a3b45;
+    --text-color: #333;
+    --text-muted: #6c757d;
+    --border-color: #e3e6f0;
+    --card-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+    --transition-speed: 0.3s;
+    --input-bg: #fff;
+    --input-border: #ced4da;
+    --input-text: #333;
+    --input-placeholder: #6c757d;
+    --dropdown-bg: #fff;
+    --dropdown-text: #333;
+    --dropdown-hover-bg: #f8f9fa;
+    --dropdown-hover-text: #16181b;
+    --dropdown-border: rgba(0, 0, 0, 0.15);
+    --modal-bg: #fff;
+    --modal-text: #333;
+    --tooltip-bg: #000;
+    --tooltip-text: #fff;
+    --alert-bg: #f8f9fa;
+    --alert-text: #333;
+    --scrollbar-track: #f1f1f1;
+    --scrollbar-thumb: #c1c1c1;
+    --scrollbar-thumb-hover: #a8a8a8;
+    --navbar-bg: #4e73df;
+    --navbar-text: #fff;
+    --card-bg: #fff;
+    --card-header-bg: #f8f9fa;
+    --card-footer-bg: #f8f9fa;
+    --list-group-bg: #fff;
+    --list-group-hover-bg: #f8f9fa;
+    --empty-icon-color: #d1d3e2;
+    --focus-ring-color: rgba(78, 115, 223, 0.25);
+    --link-color: #4e73df;
+    --link-hover-color: #3a56a5;
+}
+
+[data-theme="dark"] {
+    /* Dark mode colors - enhanced palette */
+    --primary-color: #5a7ce0; /* Slightly lighter for better visibility */
+    --primary-dark: #4a69c9;
+    --primary-light: #8ba5f7;
+    --secondary-color: #25d094;
+    --secondary-dark: #1db37c;
+    --secondary-light: #5cddb1;
+    --danger-color: #e95c4e;
+    --warning-color: #f7ca54;
+    --info-color: #4ac3d3;
+    --dark-color: #6a6c79;
+    --light-color: #1a1c23;
+    --white-color: #25272e;
+    --gray-100: #2e3035;
+    --gray-200: #2a2b31;
+    --gray-300: #252629;
+    --gray-400: #1f2023;
+    --gray-500: #1a1b1e;
+    --gray-600: #b9bbbe;
+    --gray-700: #dcddde;
+    --gray-800: #e3e5e8;
+    --gray-900: #f2f3f5;
+    --text-color: #e3e5e8;
+    --text-muted: #b9bbbe;
+    --border-color: #40444b;
+    --card-shadow: 0 0.15rem 1.75rem 0 rgba(0, 0, 0, 0.3);
+    --transition-speed: 0.3s;
+    --input-bg: #2a2b31;
+    --input-border: #40444b;
+    --input-text: #e3e5e8;
+    --input-placeholder: #b9bbbe;
+    --dropdown-bg: #2a2b31;
+    --dropdown-text: #e3e5e8;
+    --dropdown-hover-bg: #36393f;
+    --dropdown-hover-text: #ffffff;
+    --dropdown-border: rgba(0, 0, 0, 0.3);
+    --modal-bg: #2a2b31;
+    --modal-text: #e3e5e8;
+    --tooltip-bg: #202225;
+    --tooltip-text: #e3e5e8;
+    --alert-bg: #36393f;
+    --alert-text: #e3e5e8;
+    --scrollbar-track: #2e3035;
+    --scrollbar-thumb: #202225;
+    --scrollbar-thumb-hover: #40444b;
+    --navbar-bg: #1f2129;
+    --navbar-text: #e3e5e8;
+    --card-bg: #2a2b31;
+    --card-header-bg: #25272e;
+    --card-footer-bg: #25272e;
+    --list-group-bg: #2a2b31;
+    --list-group-hover-bg: #36393f;
+    --empty-icon-color: #40444b;
+    --focus-ring-color: rgba(90, 124, 224, 0.4);
+    --link-color: #7c97f5;
+    --link-hover-color: #a3b4f8;
+}
+
+/* General Styles */
+body {
+    background-color: var(--light-color);
+    color: var(--text-color);
+    font-family: 'Nunito', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    transition: background-color var(--transition-speed) ease, color var(--transition-speed) ease;
+    overflow-x: hidden;
+    min-height: 100vh;
+}
+
+.text-muted {
+    color: var(--text-muted) !important;
+}
+
+.text-gray-300 {
+    color: var(--empty-icon-color) !important;
+}
+
+.card {
+    border-radius: 0.75rem;
+    border: none;
+    background-color: var(--card-bg);
+    box-shadow: var(--card-shadow);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background-color var(--transition-speed) ease;
+    overflow: hidden;
+    color: var(--text-color);
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0.5rem 2rem 0 rgba(58, 59, 69, 0.2);
+}
+
+.card-header {
+    border-radius: calc(0.75rem - 1px) calc(0.75rem - 1px) 0 0 !important;
+    background-color: var(--card-header-bg) !important;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-color);
+}
+
+.card-footer {
+    background-color: var(--card-footer-bg) !important;
+    border-top: 1px solid var(--border-color);
+}
+
+.bg-light {
+    background-color: var(--gray-100) !important;
+}
+
+.bg-white {
+    background-color: var(--card-bg) !important;
+}
+
+.bg-primary {
+    background-color: var(--navbar-bg) !important;
+}
+
+.border {
+    border-color: var(--border-color) !important;
+}
+
+/* Navbar Styling */
+.navbar {
+    background-color: var(--navbar-bg) !important;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(0, 0, 0, 0.15);
+}
+
+.navbar-dark .navbar-nav .nav-link {
+    color: var(--navbar-text);
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+}
+
+.navbar-dark .navbar-nav .nav-link:hover {
+    opacity: 1;
+}
+
+.navbar-dark .navbar-brand {
+    color: var(--navbar-text);
+    font-weight: 700;
+}
+
+/* Buttons */
+.btn {
+    border-radius: 0.5rem;
+    padding: 0.375rem 1rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.btn-primary:hover {
+    background-color: var(--primary-dark);
+    border-color: var(--primary-dark);
+}
+
+.btn-outline-primary {
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.btn-outline-primary:hover {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+/* List Groups */
+.list-group-item {
+    background-color: var(--list-group-bg);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+.list-group-item:hover {
+    background-color: var(--list-group-hover-bg);
+}
+
+/* Form Controls */
+.form-control, .form-select {
+    background-color: var(--input-bg);
+    border-color: var(--input-border);
+    color: var(--input-text);
+    transition: background-color var(--transition-speed) ease, 
+                color var(--transition-speed) ease, 
+                border-color var(--transition-speed) ease,
+                box-shadow var(--transition-speed) ease;
+}
+
+.form-control:focus, .form-select:focus {
+    background-color: var(--input-bg);
+    border-color: var(--primary-color);
+    color: var(--input-text);
+    box-shadow: 0 0 0 0.25rem var(--focus-ring-color);
+}
+
+/* Links */
+a {
+    color: var(--link-color);
+    text-decoration: none;
+    transition: color var(--transition-speed) ease;
+}
+
+a:hover {
+    color: var(--link-hover-color);
+    text-decoration: underline;
+}
+
+/* Dropdown Menus */
+.dropdown-menu {
+    background-color: var(--dropdown-bg);
+    border-color: var(--dropdown-border);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.175);
+}
+
+.dropdown-item {
+    color: var(--dropdown-text);
+}
+
+.dropdown-item:hover, .dropdown-item:focus {
+    background-color: var(--dropdown-hover-bg);
+    color: var(--dropdown-hover-text);
+}
+
+.dropdown-divider {
+    border-top-color: var(--border-color);
+}
+
+/* Modal Dialogs */
+.modal-content {
+    background-color: var(--modal-bg);
+    color: var(--modal-text);
+    border-color: var(--border-color);
+}
+
+.modal-header, .modal-footer {
+    border-color: var(--border-color);
+}
+
+.modal-backdrop {
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+/* Tooltips */
+.tooltip .tooltip-inner {
+    background-color: var(--tooltip-bg);
+    color: var(--tooltip-text);
+}
+
+.tooltip .tooltip-arrow::before {
+    border-top-color: var(--tooltip-bg);
+}
+
+/* Alerts */
+.alert {
+    background-color: var(--alert-bg);
+    color: var(--alert-text);
+    border-color: var(--border-color);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+/* Table Styles */
+.table {
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+.table thead th {
+    background-color: var(--card-header-bg);
+    border-color: var(--border-color);
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Progress Bars */
+.progress {
+    background-color: var(--gray-300);
+}
+
+/* SphereBot Floating Bubble */
+.spherebot-bubble {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    background-color: var(--primary-color);
+    color: white;
+    border-radius: 50%;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 60px;
+    height: 60px;
+    z-index: 1000;
+    cursor: pointer;
+    transition: all 0.3s ease, background-color var(--transition-speed) ease, color var(--transition-speed) ease, transform 0.3s ease;
+    border: none;
+}
+
+[data-theme="dark"] .spherebot-bubble {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--gray-700);
+}
+
+.spherebot-bubble:hover {
+    transform: scale(1.1);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] .spherebot-bubble:hover {
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+}
+
+.spherebot-bubble.hidden {
+    transform: scale(0);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.spherebot-icon {
+    font-size: 1.5rem;
+}
+
+/* SphereBot Chat Interface */
+.spherebot-chat {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    width: 350px;
+    height: 500px;
+    background-color: var(--card-bg);
+    border-radius: 15px;
+    box-shadow: 0 5px 25px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    z-index: 1001;
+    overflow: hidden;
+    transition: all 0.3s ease, transform 0.3s ease, opacity 0.3s ease;
+    transform: scale(0.9);
+    opacity: 0;
+    pointer-events: none;
+    border: 1px solid var(--border-color);
+}
+
+[data-theme="dark"] .spherebot-chat {
+    background-color: var(--gray-900);
+    border-color: var(--gray-700);
+    box-shadow: 0 5px 25px rgba(0, 0, 0, 0.4);
+}
+
+.spherebot-chat.active {
+    transform: scale(1);
+    opacity: 1;
+    pointer-events: all;
+}
+
+.spherebot-header {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top-left-radius: 15px;
+    border-top-right-radius: 15px;
+}
+
+[data-theme="dark"] .spherebot-header {
+    background-color: var(--primary-dark);
+}
+
+.spherebot-title {
+    display: flex;
+    align-items: center;
+    font-weight: 600;
+}
+
+.spherebot-title i {
+    margin-right: 10px;
+    font-size: 1.2rem;
+}
+
+.spherebot-controls {
+    display: flex;
+    align-items: center;
+}
+
+.spherebot-control-btn {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    margin-left: 5px;
+    transition: background-color 0.2s ease;
+}
+
+.spherebot-control-btn:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.spherebot-control-btn:active {
+    transform: scale(0.95);
+}
+
+.spherebot-messages {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.spherebot-message {
+    display: flex;
+    align-items: flex-start;
+    max-width: 80%;
+}
+
+.user-message {
+    margin-left: auto;
+    flex-direction: row-reverse;
+}
+
+.bot-message {
+    margin-right: auto;
+}
+
+.avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 8px;
+    flex-shrink: 0;
+}
+
+.bot-avatar {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.user-avatar {
+    background-color: var(--secondary-color);
+    color: white;
+}
+
+.message-content {
+    background-color: var(--gray-200);
+    padding: 10px 15px;
+    border-radius: 15px;
+    position: relative;
+    color: var(--text-color);
+}
+
+.user-message .message-content {
+    background-color: var(--primary-light);
+    color: white;
+    border-top-right-radius: 0;
+}
+
+.bot-message .message-content {
+    background-color: var(--gray-200);
+    border-top-left-radius: 0;
+}
+
+.message-time {
+    display: block;
+    font-size: 0.7rem;
+    margin-top: 5px;
+    opacity: 0.7;
+    text-align: right;
+}
+
+[data-theme="dark"] .bot-message .message-content {
+    background-color: var(--gray-700);
+    color: white;
+}
+
+[data-theme="dark"] .user-message .message-time,
+[data-theme="dark"] .bot-message .message-time {
+    color: rgba(255, 255, 255, 0.9);
+    opacity: 0.9;
+}
+
+.spherebot-input-container {
+    padding: 15px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+}
+
+.spherebot-input {
+    flex: 1;
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 10px 15px;
+    outline: none;
+    background-color: var(--input-bg);
+    color: var(--input-text);
+    transition: border-color 0.2s ease;
+}
+
+[data-theme="dark"] .spherebot-input {
+    background-color: var(--gray-800);
+    color: white;
+    border-color: var(--gray-700);
+}
+
+.spherebot-input:focus {
+    border-color: var(--primary-color);
+}
+
+.spherebot-send {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    margin-left: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.spherebot-send:hover {
+    background-color: var(--primary-dark);
+    transform: scale(1.05);
+}
+
+.spherebot-send:active {
+    transform: scale(0.95);
+}
+
+/* Typing indicator */
+.typing-dots {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 20px;
+}
+
+.typing-dots span {
+    width: 8px;
+    height: 8px;
+    margin: 0 2px;
+    background-color: var(--text-muted);
+    border-radius: 50%;
+    display: inline-block;
+    animation: typing 1.4s infinite ease-in-out both;
+}
+
+.typing-dots span:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+.typing-dots span:nth-child(2) {
+    animation-delay: -0.16s;
+}
+
+@keyframes typing {
+    0%, 80%, 100% { 
+        transform: scale(0);
+    } 40% { 
+        transform: scale(1);
+    }
+}
+
+/* Mobile responsiveness for SphereBot */
+@media (max-width: 576px) {
+    .spherebot-chat {
+        width: calc(100% - 30px);
+        height: 60vh;
+        bottom: 15px;
+        right: 15px;
+    }
+    
+    .spherebot-bubble {
+        bottom: 15px;
+        right: 15px;
+    }
+}
+
+/* Dashboard Widgets */
+.dashboard-widget {
+    transition: transform 0.3s ease, box-shadow 0.3s ease, background-color var(--transition-speed) ease;
+    border-radius: 0.75rem;
+    overflow: hidden;
+}
+
+.dashboard-widget:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1) !important;
+}
+
+.dashboard-widget .card-header {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.dashboard-widget .card-footer {
+    border-top: 1px solid var(--border-color);
+    background-color: var(--card-footer-bg);
+}
+
+/* Priority indicators for tasks */
+.priority-high {
+    border-left: 4px solid var(--danger-color) !important;
+}
+
+.priority-medium {
+    border-left: 4px solid var(--warning-color) !important;
+}
+
+.priority-low {
+    border-left: 4px solid var(--secondary-color) !important;
+}
+
+/* Chat bubbles */
+.chat-bubble {
+    padding: 10px 15px;
+    border-radius: 15px;
+    max-width: 80%;
+    word-wrap: break-word;
+}
+
+.chat-bubble-sender {
+    background-color: var(--primary-color);
+    color: white;
+    border-top-right-radius: 0;
+}
+
+.chat-bubble-receiver {
+    background-color: var(--gray-200);
+    color: var(--text-color);
+    border-top-left-radius: 0;
+}
+
+/* Avatar styling */
+.avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.avatar-sm {
+    width: 28px;
+    height: 28px;
+}
+
+.avatar-md {
+    width: 60px;
+    height: 60px;
+}
+
+.avatar-lg {
+    width: 100px;
+    height: 100px;
+}
+
+/* Theme Toggle - Enhanced */
+.theme-toggle {
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.theme-toggle:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    transform: scale(1.1);
+}
+
+.theme-toggle:active {
+    transform: scale(0.95);
+}
+
+.theme-toggle i {
+    font-size: 1.2rem;
+    transition: transform 0.3s ease;
+}
+
+.theme-toggle:hover i {
+    transform: rotate(15deg);
+}
+
+[data-theme="dark"] .theme-toggle:hover {
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+/* Theme transition class for smooth theme changes */
+.theme-transition {
+    transition: background-color 0.5s ease, 
+                color 0.5s ease, 
+                border-color 0.5s ease, 
+                box-shadow 0.5s ease,
+                opacity 0.5s ease;
+}
+
+/* Empty state styling - Enhanced */
+.empty-state {
+    padding: 3rem 1rem;
+    text-align: center;
+    background-color: var(--card-bg);
+    border-radius: 0.75rem;
+    border: 1px dashed var(--border-color);
+}
+
+.empty-state i {
+    font-size: 3rem;
+    color: var(--empty-icon-color);
+    margin-bottom: 1.5rem;
+    opacity: 0.7;
+}
+
+.empty-state h4 {
+    color: var(--text-color);
+    margin-bottom: 1rem;
+}
+
+.empty-state p {
+    color: var(--text-muted);
+    max-width: 80%;
+    margin: 0 auto 1.5rem;
+}
+
+/* Accessibility improvements */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Focus styles for keyboard navigation */
+a:focus, button:focus, input:focus, select:focus, textarea:focus, [tabindex]:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* Skip to content link for accessibility */
+.skip-to-content {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    background: var(--primary-color);
+    color: white;
+    padding: 8px;
+    z-index: 9999;
+    transition: top 0.3s ease;
+}
+
+.skip-to-content:focus {
+    top: 0;
+}
+
+/* Improved contrast for text on colored backgrounds */
+.bg-primary, .bg-secondary, .bg-success, .bg-danger, .bg-warning, .bg-info, .bg-dark {
+    color: #fff;
+}
+
+[data-theme="dark"] .bg-light {
+    color: var(--text-color);
+}
+
+/* Enhanced table styles for dark mode */
+[data-theme="dark"] .table {
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .table-striped > tbody > tr:nth-of-type(odd) > * {
+    background-color: rgba(255, 255, 255, 0.05);
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .table-hover > tbody > tr:hover > * {
+    background-color: rgba(255, 255, 255, 0.075);
+    color: var(--text-color);
+}
+
+/* Page Transitions */
+.page-transition {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Restoring dark mode styles for SphereBot chat components */
+[data-theme="dark"] .bot-message .message-content {
+    background-color: var(--gray-700);
+    color: white;
+}
+
+[data-theme="dark"] .spherebot-chat {
+    background-color: var(--gray-900);
+    border-color: var(--gray-700);
+}
+
+[data-theme="dark"] .spherebot-input {
+    background-color: var(--gray-800);
+    color: white;
+    border-color: var(--gray-700);
+}
+
+[data-theme="dark"] .spherebot-messages {
+    scrollbar-color: var(--gray-700) var(--gray-900);
+}
+
+[data-theme="dark"] .typing-dots span {
+    background-color: var(--gray-500);
+}
+
+.message-content p {
+    margin: 0;
+    word-break: break-word;
+}
+
+.message-time {
+    display: block;
+    font-size: 0.7rem;
+    margin-top: 5px;
+    opacity: 0.7;
+    text-align: right;
+}

@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+
+{% block title %}Welcome to FamilySphere{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-10 text-center">
+            <div class="hero-section py-5">
+                <h1 class="display-4 mb-4">Welcome to FamilySphere</h1>
+                <p class="lead mb-4">The all-in-one platform for modern family management and coordination</p>
+                <div class="d-flex justify-content-center gap-3 mb-5">
+                    <a href="{{ url_for('login') }}" class="btn btn-primary btn-lg">Login</a>
+                    <a href="{{ url_for('register') }}" class="btn btn-outline-primary btn-lg">Register</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-5">
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <i class="fas fa-calendar-alt fa-3x mb-3 text-primary"></i>
+                    <h3 class="card-title">Family Calendar</h3>
+                    <p class="card-text">Keep track of all your family events, appointments, and activities in one place.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <i class="fas fa-tasks fa-3x mb-3 text-primary"></i>
+                    <h3 class="card-title">Task Management</h3>
+                    <p class="card-text">Assign and track chores, homework, and other responsibilities.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <i class="fas fa-comments fa-3x mb-3 text-primary"></i>
+                    <h3 class="card-title">Family Chat</h3>
+                    <p class="card-text">Stay connected with your family members through our integrated messaging system.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-5">
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <i class="fas fa-piggy-bank fa-3x mb-3 text-primary"></i>
+                    <h3 class="card-title">Family Finances</h3>
+                    <p class="card-text">Track budgets, savings goals, and allowances all in one place.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <i class="fas fa-images fa-3x mb-3 text-primary"></i>
+                    <h3 class="card-title">Shared Memories</h3>
+                    <p class="card-text">Create and share family memories with photos and descriptions.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <i class="fas fa-robot fa-3x mb-3 text-primary"></i>
+                    <h3 class="card-title">SphereBot AI</h3>
+                    <p class="card-text">Get intelligent suggestions and assistance from our AI assistant.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row justify-content-center mb-5">
+        <div class="col-md-8 text-center">
+            <h2 class="mb-4">Why Choose FamilySphere?</h2>
+            <div class="d-flex justify-content-around flex-wrap">
+                <div class="feature-item mx-3 mb-3">
+                    <i class="fas fa-lock fa-2x mb-2 text-primary"></i>
+                    <h5>Secure</h5>
+                </div>
+                <div class="feature-item mx-3 mb-3">
+                    <i class="fas fa-mobile-alt fa-2x mb-2 text-primary"></i>
+                    <h5>Mobile Friendly</h5>
+                </div>
+                <div class="feature-item mx-3 mb-3">
+                    <i class="fas fa-users fa-2x mb-2 text-primary"></i>
+                    <h5>Family Focused</h5>
+                </div>
+                <div class="feature-item mx-3 mb-3">
+                    <i class="fas fa-brain fa-2x mb-2 text-primary"></i>
+                    <h5>AI Powered</h5>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-8 text-center">
+            <div class="cta-section py-4">
+                <h2 class="mb-4">Ready to get started?</h2>
+                <div class="d-flex justify-content-center gap-3">
+                    <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg">Create Your Family Account</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

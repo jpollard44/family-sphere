@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+
+{% block title %}Finances - FamilySphere{% endblock %}
+
+{% block extra_css %}
+<style>
+    .finance-card {
+        transition: transform 0.3s ease;
+    }
+    .finance-card:hover {
+        transform: translateY(-5px);
+    }
+    .budget-card {
+        border-left: 5px solid #4e73df;
+    }
+    .goal-card {
+        border-left: 5px solid #1cc88a;
+    }
+    .allowance-card {
+        border-left: 5px solid #f6c23e;
+    }
+    .progress {
+        height: 10px;
+        margin-top: 10px;
+    }
+    .add-finance-form label {
+        font-weight: 500;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Family Finances</h1>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addFinanceModal">
+            <i class="fas fa-plus-circle me-2"></i>Add New
+        </button>
+    </div>
+
+    <!-- Finance Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-0 shadow h-100">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Budget</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">${{ total_budget }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-0 shadow h-100">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Savings Goals</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">${{ total_goals }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-piggy-bank fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-0 shadow h-100">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Allowances</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">${{ total_allowances }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-wallet fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-0 shadow h-100">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Remaining Budget</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">${{ remaining_budget }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-chart-line fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Finances Tabs -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <ul class="nav nav-tabs card-header-tabs" id="financeTab" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="budgets-tab" data-bs-toggle="tab" data-bs-target="#budgets" type="button" role="tab">Budgets</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="goals-tab" data-bs-toggle="tab" data-bs-target="#goals" type="button" role="tab">Savings Goals</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="allowances-tab" data-bs-toggle="tab" data-bs-target="#allowances" type="button" role="tab">Allowances</button>
+                </li>
+            </ul>
+        </div>
+        <div class="card-body">
+            <div class="tab-content" id="financeTabContent">
+                <!-- Budgets Tab -->
+                <div class="tab-pane fade show active" id="budgets" role="tabpanel">
+                    <div class="row">
+                        {% for budget in budgets %}
+                        <div class="col-lg-4 col-md-6 mb-4">
+                            <div class="card shadow-sm finance-card budget-card">
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ budget.title }}</h5>
+                                    <p class="card-text text-muted">{{ budget.description }}</p>
+                                    <div class="d-flex justify-content-between">
+                                        <span class="font-weight-bold">${{ budget.amount }}</span>
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-light" type="button" data-bs-toggle="dropdown">
+                                                <i class="fas fa-ellipsis-v"></i>
+                                            </button>
+                                            <div class="dropdown-menu">
+                                                <a class="dropdown-item" href="#"><i class="fas fa-edit me-2"></i>Edit</a>
+                                                <a class="dropdown-item" href="#"><i class="fas fa-trash-alt me-2"></i>Delete</a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="col-12">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>No budgets created yet. Click "Add New" to create your first budget.
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <!-- Goals Tab -->
+                <div class="tab-pane fade" id="goals" role="tabpanel">
+                    <div class="row">
+                        {% for goal in goals %}
+                        <div class="col-lg-4 col-md-6 mb-4">
+                            <div class="card shadow-sm finance-card goal-card">
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ goal.title }}</h5>
+                                    <p class="card-text text-muted">{{ goal.description }}</p>
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span>${{ goal.amount }} of ${{ goal.target_amount }}</span>
+                                        <span>{{ (goal.amount / goal.target_amount * 100)|round|int }}%</span>
+                                    </div>
+                                    <div class="progress">
+                                        <div class="progress-bar bg-success" role="progressbar" style="width: {{ (goal.amount / goal.target_amount * 100)|round|int }}%"></div>
+                                    </div>
+                                    <small class="text-muted mt-2 d-block">Due: {{ goal.due_date }}</small>
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="col-12">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>No savings goals created yet. Click "Add New" to create your first goal.
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <!-- Allowances Tab -->
+                <div class="tab-pane fade" id="allowances" role="tabpanel">
+                    <div class="row">
+                        {% for allowance in allowances %}
+                        <div class="col-lg-4 col-md-6 mb-4">
+                            <div class="card shadow-sm finance-card allowance-card">
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ allowance.title }}</h5>
+                                    <p class="card-text text-muted">{{ allowance.description }}</p>
+                                    <div class="d-flex justify-content-between">
+                                        <span class="font-weight-bold">${{ allowance.amount }}</span>
+                                        <span class="text-muted">{{ family.members|selectattr('id', 'equalto', allowance.assigned_to)|first|attr('username') }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="col-12">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>No allowances created yet. Click "Add New" to create your first allowance.
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Finance Modal -->
+<div class="modal fade" id="addFinanceModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add New Finance Item</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <ul class="nav nav-tabs mb-3" id="addFinanceTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="add-budget-tab" data-bs-toggle="tab" data-bs-target="#add-budget" type="button" role="tab">Budget</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="add-goal-tab" data-bs-toggle="tab" data-bs-target="#add-goal" type="button" role="tab">Goal</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="add-allowance-tab" data-bs-toggle="tab" data-bs-target="#add-allowance" type="button" role="tab">Allowance</button>
+                    </li>
+                </ul>
+                <div class="tab-content" id="addFinanceTabContent">
+                    <!-- Add Budget Form -->
+                    <div class="tab-pane fade show active" id="add-budget" role="tabpanel">
+                        <form method="POST" action="{{ url_for('add_finance') }}" class="add-finance-form">
+                            <input type="hidden" name="type" value="Budget">
+                            <div class="mb-3">
+                                <label for="budget_title" class="form-label">Budget Title</label>
+                                <input type="text" class="form-control" id="budget_title" name="title" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="budget_description" class="form-label">Description</label>
+                                <textarea class="form-control" id="budget_description" name="description" rows="2"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="budget_amount" class="form-label">Amount ($)</label>
+                                <input type="number" class="form-control" id="budget_amount" name="amount" step="0.01" min="0" required>
+                            </div>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary">Add Budget</button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Add Goal Form -->
+                    <div class="tab-pane fade" id="add-goal" role="tabpanel">
+                        <form method="POST" action="{{ url_for('add_finance') }}" class="add-finance-form">
+                            <input type="hidden" name="type" value="Goal">
+                            <div class="mb-3">
+                                <label for="goal_title" class="form-label">Goal Title</label>
+                                <input type="text" class="form-control" id="goal_title" name="title" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="goal_description" class="form-label">Description</label>
+                                <textarea class="form-control" id="goal_description" name="description" rows="2"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="goal_current" class="form-label">Current Amount ($)</label>
+                                <input type="number" class="form-control" id="goal_current" name="amount" step="0.01" min="0" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="goal_target" class="form-label">Target Amount ($)</label>
+                                <input type="number" class="form-control" id="goal_target" name="target_amount" step="0.01" min="0" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="goal_date" class="form-label">Target Date</label>
+                                <input type="date" class="form-control" id="goal_date" name="due_date">
+                            </div>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-success">Add Goal</button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Add Allowance Form -->
+                    <div class="tab-pane fade" id="add-allowance" role="tabpanel">
+                        <form method="POST" action="{{ url_for('add_finance') }}" class="add-finance-form">
+                            <input type="hidden" name="type" value="Allowance">
+                            <div class="mb-3">
+                                <label for="allowance_title" class="form-label">Allowance Title</label>
+                                <input type="text" class="form-control" id="allowance_title" name="title" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="allowance_description" class="form-label">Description</label>
+                                <textarea class="form-control" id="allowance_description" name="description" rows="2"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="allowance_amount" class="form-label">Amount ($)</label>
+                                <input type="number" class="form-control" id="allowance_amount" name="amount" step="0.01" min="0" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="allowance_user" class="form-label">Assign To</label>
+                                <select class="form-select" id="allowance_user" name="assigned_to" required>
+                                    <option value="" selected disabled>Select family member</option>
+                                    {% for member in family.members %}
+                                    <option value="{{ member.id }}">{{ member.username }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-warning">Add Allowance</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SphereBot AI Suggestions -->
+<div class="spherebot-bubble" id="spherebot-bubble">
+    <div class="spherebot-icon">
+        <i class="fas fa-robot"></i>
+    </div>
+    <div class="spherebot-content" id="spherebot-content">
+        {{ spherebot_suggestion }}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize finance-specific functionality
+        const addFinanceModal = document.getElementById('addFinanceModal');
+        if (addFinanceModal) {
+            addFinanceModal.addEventListener('shown.bs.modal', function() {
+                document.getElementById('budget_title').focus();
+            });
+        }
+        
+        // Get SphereBot suggestion for finances
+        getSphereBot('finance');
+    });
+</script>
+{% endblock %}

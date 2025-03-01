@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create FamilySphere Tables</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #4e73df;
+        }
+        button {
+            background-color: #4e73df;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        button:hover {
+            background-color: #2e59d9;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .log {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 4px;
+            height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>FamilySphere Table Creator</h1>
+    
+    <p>This tool will create the necessary tables for the FamilySphere chat functionality:</p>
+    <ul>
+        <li><strong>chat_threads</strong> - For storing chat thread information</li>
+        <li><strong>poll_votes</strong> - For storing poll vote information</li>
+    </ul>
+    
+    <div>
+        <label for="supabaseUrl">Supabase URL:</label>
+        <input type="text" id="supabaseUrl" value="https://bzkhmwvzjvhehilqwlmy.supabase.co" style="width: 400px;">
+    </div>
+    <div style="margin-top: 10px;">
+        <label for="supabaseKey">Supabase Key:</label>
+        <input type="text" id="supabaseKey" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ6a2htd3Z6anZoZWhpbHF3bG15Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA3ODQ2MzcsImV4cCI6MjA1NjM2MDYzN30.fC04eWawBRQAMOyC83c1sv55AU9qzqCuPIuKwiRktoY" style="width: 400px;">
+    </div>
+    
+    <button id="createTablesBtn">Create Tables</button>
+    
+    <div class="log" id="log"></div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const logElement = document.getElementById('log');
+            
+            function log(message) {
+                const timestamp = new Date().toLocaleTimeString();
+                logElement.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+                logElement.scrollTop = logElement.scrollHeight;
+            }
+            
+            document.getElementById('createTablesBtn').addEventListener('click', async function() {
+                const supabaseUrl = document.getElementById('supabaseUrl').value;
+                const supabaseKey = document.getElementById('supabaseKey').value;
+                
+                if (!supabaseUrl || !supabaseKey) {
+                    log('Error: Supabase URL and Key are required');
+                    return;
+                }
+                
+                log('Initializing Supabase client...');
+                const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+                
+                // Create chat_threads table
+                try {
+                    log('Checking if chat_threads table exists...');
+                    await supabase.from('chat_threads').select('count').limit(1);
+                    log('chat_threads table already exists');
+                } catch (error) {
+                    log(`Error checking chat_threads table: ${error.message}`);
+                    log('Creating chat_threads table...');
+                    
+                    try {
+                        // We can't create tables directly with the JS client
+                        // So we'll provide instructions
+                        log('Please create the chat_threads table manually in the Supabase dashboard with the following SQL:');
+                        log(`
+CREATE TABLE IF NOT EXISTS chat_threads (
+    id UUID PRIMARY KEY,
+    name TEXT NOT NULL,
+    family_id UUID NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_by UUID NOT NULL
+);
+                        `);
+                    } catch (error) {
+                        log(`Error creating chat_threads table: ${error.message}`);
+                    }
+                }
+                
+                // Create default thread
+                try {
+                    log('Creating default chat thread...');
+                    const threadId = crypto.randomUUID();
+                    const { data, error } = await supabase.from('chat_threads').insert({
+                        id: threadId,
+                        name: 'General',
+                        family_id: '0c0aca45-8a48-4d97-955c-e655b1f904bd',
+                        created_at: new Date().toISOString(),
+                        created_by: '2099db7d-9ec2-4dd5-bcdb-c044868b9e0d'
+                    });
+                    
+                    if (error) {
+                        throw error;
+                    }
+                    
+                    log(`Default chat thread created with ID: ${threadId}`);
+                } catch (error) {
+                    log(`Error creating default thread: ${error.message}`);
+                    log('Please create a default thread manually with the following SQL:');
+                    log(`
+INSERT INTO chat_threads (id, name, family_id, created_at, created_by)
+VALUES (
+    '00000000-0000-0000-0000-000000000001',
+    'General',
+    '0c0aca45-8a48-4d97-955c-e655b1f904bd',
+    NOW(),
+    '2099db7d-9ec2-4dd5-bcdb-c044868b9e0d'
+);
+                    `);
+                }
+                
+                // Create poll_votes table
+                try {
+                    log('Checking if poll_votes table exists...');
+                    await supabase.from('poll_votes').select('count').limit(1);
+                    log('poll_votes table already exists');
+                } catch (error) {
+                    log(`Error checking poll_votes table: ${error.message}`);
+                    log('Creating poll_votes table...');
+                    
+                    try {
+                        // We can't create tables directly with the JS client
+                        // So we'll provide instructions
+                        log('Please create the poll_votes table manually in the Supabase dashboard with the following SQL:');
+                        log(`
+CREATE TABLE IF NOT EXISTS poll_votes (
+    id UUID PRIMARY KEY,
+    poll_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    option_index INTEGER NOT NULL,
+    timestamp TIMESTAMP WITH TIME ZONE NOT NULL
+);
+                        `);
+                    } catch (error) {
+                        log(`Error creating poll_votes table: ${error.message}`);
+                    }
+                }
+                
+                log('Table creation process completed. Please check the logs for any errors or manual steps required.');
+            });
+        });
+    </script>
+</body>
+</html>
