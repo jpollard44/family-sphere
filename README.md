@@ -98,6 +98,51 @@ FamilySphere/
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
+## Deployment on Render.com
+
+FamilySphere can be easily deployed on Render.com using the following steps:
+
+### Option 1: Deploy via GitHub
+
+1. Fork or push this repository to your GitHub account
+2. Log in to [Render.com](https://render.com)
+3. Click "New" and select "Web Service"
+4. Connect your GitHub account and select the FamilySphere repository
+5. Configure the following settings:
+   - **Name**: family-sphere (or your preferred name)
+   - **Environment**: Python
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `gunicorn app:app`
+   - **Plan**: Free (or select another plan if needed)
+6. Add the following environment variables:
+   - `SUPABASE_URL`: Your Supabase URL
+   - `SUPABASE_ANON_KEY`: Your Supabase anonymous key
+   - `SECRET_KEY`: A secure random string
+   - `FLASK_ENV`: production
+   - `FLASK_APP`: app.py
+7. Click "Create Web Service"
+
+### Option 2: Deploy via Render Blueprint
+
+1. Fork or push this repository to your GitHub account
+2. Ensure the `render.yaml` file is in the root directory
+3. Log in to [Render.com](https://render.com)
+4. Click "New" and select "Blueprint"
+5. Connect your GitHub account and select the FamilySphere repository
+6. Render will automatically detect the `render.yaml` file and configure the services
+7. Add your environment variables when prompted
+8. Click "Apply"
+
+### Post-Deployment
+
+After deployment, you'll need to:
+
+1. Set up your database tables in Supabase if not already done
+2. Create an initial admin user through the registration page
+3. Configure any additional settings through the application interface
+
+Your FamilySphere application will be available at the URL provided by Render (typically `https://your-service-name.onrender.com`).
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
