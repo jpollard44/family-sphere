@@ -12,6 +12,7 @@
                 </div>
                 <div class="card-body">
                     <form method="POST" action="{{ url_for('add_finance') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <div class="mb-3">
                             <label for="type" class="form-label">Type</label>
                             <select class="form-control" id="type" name="type" required>
