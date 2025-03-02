@@ -2386,7 +2386,7 @@ def add_health_record():
                 'type': f'health_{record_type}',
                 'record_id': record_id,
                 'time': record_data.get('reminder_time') or f"{record_data.get('date')} {record_data.get('time')}",
-                'message': f"Reminder: {record_data.get('medication') or f'Appointment with {record_data.get('doctor')}'}",
+                'message': f"Reminder: {record_data.get('medication') if record_data.get('medication') else 'Appointment with ' + str(record_data.get('doctor', ''))}",
                 'status': 'Active',
                 'created_at': datetime.now().isoformat()
             }
