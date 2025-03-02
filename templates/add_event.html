@@ -7,32 +7,187 @@
     <div class="row">
         <div class="col-md-8 offset-md-2">
             <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <h4 class="mb-0">Add New Event</h4>
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">
+                        {% if template %}
+                        Add Event from Template: {{ template.template_name }}
+                        {% else %}
+                        Add New Event
+                        {% endif %}
+                    </h4>
+                    <a href="{{ url_for('calendar_templates') }}" class="btn btn-sm btn-light">
+                        <i class="fas fa-clipboard-list me-1"></i> Manage Templates
+                    </a>
                 </div>
                 <div class="card-body">
                     <form method="POST" action="{{ url_for('add_event') }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        {% if form_data.template_id %}
+                        <input type="hidden" name="template_id" value="{{ form_data.template_id }}">
+                        {% endif %}
+                        
                         <div class="mb-3">
                             <label for="title" class="form-label">Title</label>
-                            <input type="text" class="form-control" id="title" name="title" required>
+                            <input type="text" class="form-control" id="title" name="title" required value="{{ form_data.title }}">
                         </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="date" class="form-label">Date</label>
+                                    <input type="date" class="form-control" id="date" name="date" required value="{{ request.args.get('date', '') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="time" class="form-label">Time (optional)</label>
+                                    <input type="time" class="form-control" id="time" name="time" value="{{ form_data.start_time }}">
+                                </div>
+                            </div>
+                        </div>
+                        
                         <div class="mb-3">
-                            <label for="date" class="form-label">Date</label>
-                            <input type="date" class="form-control" id="date" name="date" required>
+                            <label for="category" class="form-label">Category</label>
+                            <select class="form-select" id="category" name="category">
+                                <option value="family" {% if form_data.category == 'Family' %}selected{% endif %}>Family</option>
+                                <option value="work" {% if form_data.category == 'Work' %}selected{% endif %}>Work</option>
+                                <option value="school" {% if form_data.category == 'School' %}selected{% endif %}>School</option>
+                                <option value="health" {% if form_data.category == 'Health' %}selected{% endif %}>Health</option>
+                                <option value="social" {% if form_data.category == 'Social' %}selected{% endif %}>Social</option>
+                                <option value="sports" {% if form_data.category == 'Sports' %}selected{% endif %}>Sports</option>
+                                <option value="other" {% if form_data.category == 'Other' %}selected{% endif %}>Other</option>
+                            </select>
                         </div>
-                        <div class="mb-3">
-                            <label for="time" class="form-label">Time (optional)</label>
-                            <input type="time" class="form-control" id="time" name="time">
-                        </div>
+                        
                         <div class="mb-3">
                             <label for="description" class="form-label">Description</label>
-                            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                            <textarea class="form-control" id="description" name="description" rows="3">{{ form_data.description }}</textarea>
                         </div>
+                        
                         <div class="mb-3">
                             <label for="location" class="form-label">Location</label>
-                            <input type="text" class="form-control" id="location" name="location">
+                            <input type="text" class="form-control" id="location" name="location" value="{{ form_data.location }}">
                         </div>
+                        
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="event-recurring" name="is_recurring" {% if form_data.recurrence %}checked{% endif %}>
+                                <label class="form-check-label" for="event-recurring">
+                                    Recurring Event
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div id="recurring-options" style="display: {% if form_data.recurrence %}block{% else %}none{% endif %};">
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label for="recurrence-pattern" class="form-label">Repeat</label>
+                                        <select class="form-select" id="recurrence-pattern" name="recurrence_pattern">
+                                            <option value="daily" {% if form_data.recurrence == 'daily' %}selected{% endif %}>Daily</option>
+                                            <option value="weekly" {% if form_data.recurrence == 'weekly' %}selected{% endif %}>Weekly</option>
+                                            <option value="biweekly" {% if form_data.recurrence == 'biweekly' %}selected{% endif %}>Every 2 weeks</option>
+                                            <option value="monthly" {% if form_data.recurrence == 'monthly' %}selected{% endif %}>Monthly</option>
+                                            <option value="yearly" {% if form_data.recurrence == 'yearly' %}selected{% endif %}>Yearly</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="recurrence-end-date" class="form-label">End Date (optional)</label>
+                                        <input type="date" class="form-control" id="recurrence-end-date" name="recurrence_end_date">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="event-rsvp" name="rsvp_enabled">
+                                <label class="form-check-label" for="event-rsvp">
+                                    Enable RSVP
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div id="rsvp-options" style="display: none;">
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label for="rsvp-deadline" class="form-label">RSVP Deadline (optional)</label>
+                                        <input type="date" class="form-control" id="rsvp-deadline" name="rsvp_deadline">
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="rsvp-notify" name="rsvp_notify" checked>
+                                            <label class="form-check-label" for="rsvp-notify">
+                                                Notify me of responses
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="event-reminder" name="reminder_enabled">
+                                <label class="form-check-label" for="event-reminder">
+                                    Set Reminder
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div id="reminder-options" style="display: none;">
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label for="reminder-time" class="form-label">Remind me</label>
+                                        <select class="form-select" id="reminder-time" name="reminder_time">
+                                            <option value="15">15 minutes before</option>
+                                            <option value="30">30 minutes before</option>
+                                            <option value="60">1 hour before</option>
+                                            <option value="120">2 hours before</option>
+                                            <option value="1440">1 day before</option>
+                                            <option value="2880">2 days before</option>
+                                            <option value="10080">1 week before</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="notification-method" class="form-label">Notification Method</label>
+                                        <select class="form-select" id="notification-method" name="notification_method">
+                                            <option value="app">In-app notification</option>
+                                            <option value="email">Email</option>
+                                            <option value="both">Both</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="shared-with" class="form-label">Share with (optional)</label>
+                            <select class="form-select" id="shared-with" name="shared_with" multiple>
+                                {% for family in families %}
+                                <option value="{{ family.id }}">{{ family.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">Hold Ctrl/Cmd to select multiple families</div>
+                        </div>
+                        
+                        {% if form_data.template_id %}
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="update-template" name="update_template">
+                                <label class="form-check-label" for="update-template">
+                                    Update template with these changes
+                                </label>
+                            </div>
+                            <div class="form-text">Check this to save any changes back to the template for future use</div>
+                        </div>
+                        {% endif %}
+                        
                         <div class="d-flex justify-content-between">
                             <a href="{{ url_for('calendar') }}" class="btn btn-secondary">Cancel</a>
                             <button type="submit" class="btn btn-primary">Add Event</button>
@@ -43,4 +198,59 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Toggle recurring options
+        const recurringCheckbox = document.getElementById('event-recurring');
+        const recurringOptions = document.getElementById('recurring-options');
+        
+        if (recurringCheckbox && recurringOptions) {
+            recurringCheckbox.addEventListener('change', function() {
+                recurringOptions.style.display = this.checked ? 'block' : 'none';
+            });
+        }
+        
+        // Toggle RSVP options
+        const rsvpCheckbox = document.getElementById('event-rsvp');
+        const rsvpOptions = document.getElementById('rsvp-options');
+        
+        if (rsvpCheckbox && rsvpOptions) {
+            rsvpCheckbox.addEventListener('change', function() {
+                rsvpOptions.style.display = this.checked ? 'block' : 'none';
+            });
+        }
+        
+        // Toggle reminder options
+        const reminderCheckbox = document.getElementById('event-reminder');
+        const reminderOptions = document.getElementById('reminder-options');
+        
+        if (reminderCheckbox && reminderOptions) {
+            reminderCheckbox.addEventListener('change', function() {
+                reminderOptions.style.display = this.checked ? 'block' : 'none';
+            });
+        }
+        
+        // Pre-fill date from URL parameter if present
+        const urlParams = new URLSearchParams(window.location.search);
+        const dateParam = urlParams.get('date');
+        if (dateParam) {
+            const dateInput = document.getElementById('date');
+            if (dateInput) {
+                dateInput.value = dateParam;
+            }
+        }
+        
+        // Handle all-day event toggle based on template
+        {% if form_data.all_day %}
+        const timeInput = document.getElementById('time');
+        if (timeInput) {
+            timeInput.value = '';
+            timeInput.disabled = true;
+        }
+        {% endif %}
+    });
+</script>
 {% endblock %}

@@ -3,14 +3,23 @@ from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import random
 import string
-import requests
 import json
-from datetime import datetime, date, timedelta
-from flask_wtf.csrf import generate_csrf
-
-from app import app
+import traceback
+import requests
+from datetime import date, datetime, timedelta
 from database import db
 from models import User, Family, Event, Task, Finance, Chat, Memory, Inventory, Health, Emergency, Settings, EmergencyContact
+from flask_wtf.csrf import generate_csrf
+from app import app, csrf
+from icalendar import Calendar, Event as ICalEvent, vText
+import pytz
+import uuid
+import os
+from dotenv import load_dotenv
+from supabase import create_client, Client
+
+# Load environment variables
+load_dotenv()
 
 # Context processor to add CSRF token to all templates
 @app.context_processor
@@ -31,174 +40,107 @@ def set_csrf_cookie(response):
 def get_spherebot_suggestion(context):
     """Generate a SphereBot suggestion based on context."""
     from database import db
+    import requests
+    from datetime import date, datetime
+    from app import app
     
     # Get the current user
     user = current_user
     
-    # Default suggestions
-    suggestions = {
-        "dashboard": "Try using the Quick Add button to create new events or tasks!",
-        "calendar": "You can drag and drop events to reschedule them.",
-        "tasks": "Assign tasks to family members to distribute responsibilities.",
-        "chat": "Use @username to tag a specific family member in your message.",
-        "finances": "Set up a savings goal for your next family vacation!",
-        "memory": "Upload photos from your last family gathering to preserve memories.",
-        "inventory": "Low on essentials? Add them to your shopping list!",
-        "health": "Schedule regular health check-ups for all family members.",
-        "emergency": "Make sure all emergency contacts are up to date.",
-        "settings": "Customize your dashboard widgets for a personalized experience.",
-        "family": "Invite extended family members to join your FamilySphere!"
-    }
-    
     try:
         # Get family data
         family_response = db.table('families').select('*').eq('id', user.family_id).execute()
+        
         if family_response.data:
             family = family_response.data[0]
             
+            # Prepare system message based on context
+            system_message = {
+                "role": "system",
+                "content": f"You are SphereBot, an AI assistant for the FamilySphere family management app. "
+                      f"You help families coordinate activities, manage tasks, and stay connected. "
+                      f"You are currently helping with the {context} feature. "
+                      f"Keep responses friendly, helpful, and focused on family coordination."
+            }
+            
+            # Prepare context-specific messages
+            messages = [system_message]
+            
             if context == "calendar":
-                # Check for upcoming events and potential conflicts
-                upcoming_events = db.table('events').select('*').eq('family_id', user.family_id).gte('date', date.today().isoformat()).order('date').limit(10).execute().data
-                
-                # Check for events on the same day
-                event_dates = {}
-                for event in upcoming_events:
-                    date_str = event['date']
-                    if date_str in event_dates:
-                        return f"You have multiple events on {event['date']}. Would you like me to suggest a schedule to avoid conflicts?"
-                    event_dates[date_str] = True
-                    
-                # Check for events coming up soon
-                if upcoming_events:
-                    next_event = upcoming_events[0]
-                    days_until = (datetime.strptime(next_event['date'], '%Y-%m-%d').date() - date.today()).days
-                    if days_until <= 1:
-                        return f"Your event '{next_event['title']}' is coming up {'tomorrow' if days_until == 1 else 'today'}! Do you need help with preparations?"
-                
-                return "Looking at your calendar, would you like me to suggest family activities for your free weekends?"
+                # Get upcoming events
+                upcoming_events = db.table('events').select('*').eq('family_id', user.family_id).gte('date', date.today().isoformat()).order('date').limit(5).execute().data
+                events_str = "Upcoming events:\n" + "\n".join([f"- {event['title']} on {event['date']}" for event in upcoming_events]) if upcoming_events else "No upcoming events."
+                messages.append({
+                    "role": "user",
+                    "content": f"Help me manage my family calendar. {events_str}"
+                })
                 
             elif context == "tasks":
-                # Check for overdue tasks
-                overdue_tasks = db.table('tasks').select('*').eq('family_id', user.family_id).eq('status', 'Pending').lt('due_date', date.today().isoformat()).execute().data
-                if overdue_tasks:
-                    return f"You have {len(overdue_tasks)} overdue {'task' if len(overdue_tasks) == 1 else 'tasks'} that need attention. Would you like me to help prioritize them?"
+                # Get pending tasks
+                pending_tasks = db.table('tasks').select('*').eq('family_id', user.family_id).eq('status', 'Pending').execute().data
+                tasks_str = "Pending tasks:\n" + "\n".join([f"- {task['title']} (due: {task['due_date']})" for task in pending_tasks]) if pending_tasks else "No pending tasks."
+                messages.append({
+                    "role": "user",
+                    "content": f"Help me manage family tasks. {tasks_str}"
+                })
                 
-                # Check for unassigned tasks
-                unassigned_tasks = db.table('tasks').select('*').eq('family_id', user.family_id).is_('assigned_to', 'null').execute().data
-                if unassigned_tasks:
-                    return f"You have {len(unassigned_tasks)} unassigned {'task' if len(unassigned_tasks) == 1 else 'tasks'}. Would you like me to suggest family members who might be available?"
-                
-                # Check for task distribution
-                members_response = db.table('users').select('*').eq('family_id', user.family_id).execute()
-                family_members = members_response.data
-                
-                task_counts = {}
-                for member in family_members:
-                    count_response = db.table('tasks').select('*').eq('family_id', user.family_id).eq('assigned_to', member['id']).eq('status', 'Pending').execute()
-                    count = len(count_response.data)
-                    task_counts[member['username']] = count
-                
-                if task_counts:
-                    max_user = max(task_counts.items(), key=lambda x: x[1])
-                    min_user = min(task_counts.items(), key=lambda x: x[1])
-                    
-                    if max_user[1] > 0 and max_user[1] >= min_user[1] * 2:
-                        return f"{max_user[0]} has {max_user[1]} tasks while {min_user[0]} only has {min_user[1]}. Would you like me to suggest redistributing some tasks?"
-                
-                return "Would you like me to suggest a task rotation schedule for your family?"
-                
-            elif context == "finance":
-                # Check for budget categories with high spending
-                finances = db.table('finances').select('*').eq('family_id', user.family_id).execute().data
-                if finances:
-                    return "I notice your grocery spending is trending higher than last month. Would you like to see where you might save?"
-                return "Would you like me to analyze your spending patterns and suggest a family budget?"
-                
-            elif context == "chat":
-                # Check for unanswered messages
-                recent_chats = db.table('chats').select('*').eq('family_id', user.family_id).order('timestamp', desc=True).limit(20).execute().data
-                if recent_chats:
-                    sender_counts = {}
-                    for chat in recent_chats:
-                        sender_response = db.table('users').select('*').eq('id', chat['sender_id']).execute()
-                        if sender_response.data:
-                            sender = sender_response.data[0]
-                            sender_counts[sender['username']] = sender_counts.get(sender['username'], 0) + 1
-                    
-                    most_active = max(sender_counts.items(), key=lambda x: x[1]) if sender_counts else None
-                    if most_active and most_active[1] > 5:
-                        return f"{most_active[0]} has been quite active in the chat lately! Would you like to pin any important messages?"
-                return "Would you like me to suggest some conversation starters for your family chat?"
-                
-            elif context == "memory":
-                # Check for recent memories without tags
-                memories = db.table('memories').select('*').eq('family_id', user.family_id).order('date', desc=True).limit(5).execute().data
-                if memories:
-                    return "I notice you have recent family photos. Would you like me to suggest tags or organize them into albums?"
-                return "Would you like me to remind you to capture memories of upcoming family events?"
-                
-            elif context == "inventory":
-                # Check for low inventory items
-                low_items = db.table('inventory').select('*').eq('family_id', user.family_id).lte('quantity', 2).execute().data
-                if low_items:
-                    items = ", ".join([item['item_name'] for item in low_items[:3]])
-                    more = len(low_items) > 3
-                    return f"You're running low on: {items}{' and more' if more else ''}. Would you like me to add these to your shopping list?"
-                return "Would you like me to analyze your inventory usage patterns and suggest restocking schedules?"
-                
-            elif context == "health":
-                # Check for upcoming medications or appointments
-                health_records = db.table('health').select('*').eq('user_id', user.id).execute().data
-                if health_records:
-                    return "It looks like it's time for some family health check-ups. Would you like me to suggest scheduling appointments?"
-                return "Would you like me to help set up medication reminders for your family?"
-                
-            elif context == "emergency":
-                # Check if emergency contacts are set up
-                emergency_contacts = db.table('emergency_contacts').select('*').eq('family_id', user.family_id).execute().data
-                if not emergency_contacts:
-                    return "I notice you haven't set up any emergency contacts yet. Would you like help setting those up for your family's safety?"
-                elif len(emergency_contacts) < 3:
-                    return "It's good to have multiple emergency contacts. Would you like to add more to your family's safety plan?"
-                return "When was the last time you reviewed your family's emergency plan? Would you like me to help update it?"
-                
-            elif context == "dashboard":
-                # Check for dashboard customization
-                settings_response = db.table('settings').select('*').eq('user_id', user.id).execute()
-                if settings_response.data:
-                    settings = settings_response.data[0]
-                    if not settings.get('dashboard_widgets') or len(settings.get('dashboard_widgets', '').split(',')) < 3:
-                        return "You might benefit from adding more widgets to your dashboard. Would you like me to suggest some based on your family's activities?"
-                
-                # Check for any high-priority items across contexts
-                overdue_tasks = db.table('tasks').select('*').eq('family_id', user.family_id).eq('status', 'Pending').lt('due_date', date.today().isoformat()).execute().count
-                upcoming_events = db.table('events').select('*').eq('family_id', user.family_id).gte('date', date.today().isoformat()).lte('date', (date.today() + timedelta(days=2)).isoformat()).execute().count
-                
-                if overdue_tasks > 0:
-                    return f"You have {overdue_tasks} overdue {'task' if overdue_tasks == 1 else 'tasks'} that need attention. Would you like me to help prioritize them?"
-                elif upcoming_events > 0:
-                    return f"You have {upcoming_events} upcoming {'event' if upcoming_events == 1 else 'events'} in the next two days. Would you like me to help with preparations?"
-                
-                return "Welcome back! What would you like to do with your family today?"
-                
-            elif context == "family":
-                # Check for family members without profile pictures
-                members_response = db.table('users').select('*').eq('family_id', user.family_id).execute()
-                members = members_response.data
-                
-                if members:
-                    return f"Your family has {len(members)} members. Would you like to invite more people to join?"
-                return "Would you like to customize your family profile and add a family photo?"
-                
-            elif context == "settings":
-                # Check for unused features
-                return "Have you tried enabling dark mode for better nighttime viewing? You can change this in your display settings."
-    
+            else:
+                messages.append({
+                    "role": "user",
+                    "content": f"Help me with {context} management in my family app."
+                })
+        
+        # Call Grok API
+        response = requests.post(
+            app.config['GROK_API_URL'],
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {app.config['GROK_API_KEY']}"
+            },
+            json={
+                "messages": messages,
+                "model": app.config['GROK_MODEL'],
+                "stream": False,
+                "temperature": 0.7
+            }
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            if 'choices' in result and result['choices']:
+                return result['choices'][0]['message']['content']
+        
+        # Fallback to default suggestions if API call fails
+        return get_default_suggestion(context)
+        
     except Exception as e:
-        print(f"Error generating SphereBot suggestion: {str(e)}")
+        print(f"Error in get_spherebot_suggestion: {str(e)}")
+        return get_default_suggestion(context)
+
+def get_default_suggestion(context):
+    """Return a default suggestion based on the context when the Grok API is unavailable."""
+    suggestions = {
+        "general": "I'm here to help you manage your family activities. You can ask me about your calendar, tasks, finances, and more.",
+        "calendar": "Would you like to see your upcoming events or add a new event to your calendar?",
+        "tasks": "Here are some task management options:\n- View your pending tasks\n- Create a new task\n- Assign tasks to family members to distribute responsibilities\n- Mark tasks as completed",
+        "finance": "I can help you manage your family finances. Would you like to review your budget, add an expense, or set a savings goal?",
+        "chat": "Would you like to send a message to your family members or check recent conversations?",
+        "memory": "Would you like to view your family photo albums or add new memories?",
+        "inventory": "I can help you manage your household inventory. Would you like to check what items you need to restock?",
+        "health": "Would you like to view medication schedules or set up health reminders for your family?",
+        "emergency": "Would you like to update emergency contact information or check your family's safety status?",
+        "family": "Would you like to manage your family members or connect with other families?"
+    }
     
-    # Return default suggestion if no personalized one was generated
-    return suggestions.get(context, "How can I assist you today?")
+    return suggestions.get(context, suggestions["general"])
+
+# Helper function to get RSVP count for an event
+def get_rsvp_count(event_id):
+    """Get the count of 'yes' RSVPs for an event."""
+    from database import db
+    
+    rsvp_response = db.table('event_rsvps').select('*').eq('event_id', event_id).eq('response', 'yes').execute()
+    return len(rsvp_response.data)
 
 # Routes for authentication
 @app.route('/login', methods=['GET', 'POST'])
@@ -456,23 +398,113 @@ def family():
 def calendar():
     """Display the family calendar with events."""
     from database import db
+    import datetime
     
     # Get all events for the user's family
     events_response = db.table('events').select('*').eq('family_id', current_user.family_id).execute()
     events = events_response.data
     
-    # Format dates for the calendar
-    calendar_events = []
-    for event in events:
-        calendar_events.append({
-            'id': event['id'],
-            'title': event['title'],
-            'start': f"{event['date']}T{event['time']}",
-            'description': event.get('description', ''),
-            'location': event.get('location', '')
-        })
+    # Get shared events
+    shared_events = []
+    shared_response = db.table('events').select('*').neq('family_id', current_user.family_id).execute()
+    for event in shared_response.data:
+        shared_with = event.get('shared_with', '')
+        if shared_with and current_user.family_id in shared_with.split(','):
+            shared_events.append(event)
     
-    return render_template('calendar.html', events=calendar_events)
+    # Get family members for filter dropdown
+    family_members_response = db.table('users').select('id, username').eq('family_id', current_user.family_id).execute()
+    family_members = family_members_response.data
+    
+    # Format events for FullCalendar
+    formatted_events = []
+    
+    for event in events:
+        formatted_event = format_event_for_calendar(event, is_family_event=True)
+        formatted_events.append(formatted_event)
+    
+    for event in shared_events:
+        formatted_event = format_event_for_calendar(event, is_family_event=False)
+        formatted_events.append(formatted_event)
+    
+    return render_template('calendar.html', 
+                           events=formatted_events, 
+                           family_members=family_members,
+                           page_title="Family Calendar")
+
+# Helper function to format events for FullCalendar
+def format_event_for_calendar(event, is_family_event=True):
+    """Format an event for FullCalendar."""
+    formatted_event = {
+        'id': event['id'],
+        'title': event['title'],
+        'start': event['date']
+    }
+    
+    # Add time if available
+    if event.get('time'):
+        try:
+            # Try parsing with seconds
+            event_time = datetime.datetime.strptime(event['time'], '%H:%M:%S').time()
+        except ValueError:
+            # If that fails, try without seconds
+            event_time = datetime.datetime.strptime(event['time'], '%H:%M').time()
+        
+        formatted_event['start'] += 'T' + event_time.strftime('%H:%M:%S')
+    
+    # Add end time if available, otherwise default to 1 hour
+    if event.get('end_time'):
+        try:
+            # Try parsing with seconds
+            end_time = datetime.datetime.strptime(event['end_time'], '%H:%M:%S').time()
+        except ValueError:
+            # If that fails, try without seconds
+            end_time = datetime.datetime.strptime(event['end_time'], '%H:%M').time()
+        
+        formatted_event['end'] = event['date'] + 'T' + end_time.strftime('%H:%M:%S')
+    else:
+        # Fallback for events with date but no time
+        formatted_event['end'] = event['date'] + 'T' + datetime.time(23, 59, 59).strftime('%H:%M:%S')
+    
+    # Add all-day flag
+    if event.get('all_day'):
+        formatted_event['allDay'] = True
+    
+    # Add color based on category
+    category_colors = {
+        'Family': '#4285F4',  # Blue
+        'Work': '#EA4335',    # Red
+        'School': '#FBBC05',  # Yellow
+        'Sports': '#34A853',  # Green
+        'Health': '#8E24AA',  # Purple
+        'Social': '#FB8C00',  # Orange
+        'Other': '#9E9E9E'    # Gray
+    }
+    
+    if event.get('category') and event['category'] in category_colors:
+        formatted_event['backgroundColor'] = category_colors[event['category']]
+    else:
+        # Default color
+        formatted_event['backgroundColor'] = '#4285F4'
+    
+    # Add border color for shared events
+    if not is_family_event:
+        formatted_event['borderColor'] = '#FF5722'  # Deep Orange
+        formatted_event['textColor'] = '#FFFFFF'
+    
+    # Add extended properties
+    formatted_event['extendedProps'] = {
+        'description': event.get('description', ''),
+        'location': event.get('location', ''),
+        'category': event.get('category', ''),
+        'created_by': event.get('created_by', ''),
+        'family_id': event.get('family_id', ''),
+        'shared_with': event.get('shared_with', ''),
+        'is_recurring': event.get('is_recurring', False),
+        'recurrence_pattern': event.get('recurrence_pattern', '')
+    }
+    
+    return formatted_event
 
 @app.route('/add_event', methods=['GET', 'POST'])
 @login_required
@@ -487,6 +519,25 @@ def add_event():
             time_str = request.form.get('time')
             description = request.form.get('description')
             location = request.form.get('location')
+            category = request.form.get('category', 'family')
+            
+            # Get recurring event options
+            is_recurring = 'is_recurring' in request.form
+            recurrence_pattern = request.form.get('recurrence_pattern')
+            recurrence_end_date = request.form.get('recurrence_end_date')
+            
+            # Get RSVP options
+            rsvp_enabled = 'rsvp_enabled' in request.form
+            rsvp_deadline = request.form.get('rsvp_deadline')
+            rsvp_notify = 'rsvp_notify' in request.form
+            
+            # Get reminder options
+            reminder_enabled = 'reminder_enabled' in request.form
+            reminder_time = request.form.get('reminder_time')
+            notification_method = request.form.get('notification_method')
+            
+            # Get shared with families
+            shared_with = request.form.getlist('shared_with')
             
             # Validate input
             if not title or not date_str:
@@ -505,96 +556,623 @@ def add_event():
                 'time': time_str if time_str else None,
                 'description': description,
                 'location': location,
+                'category': category,
                 'family_id': current_user.family_id,
-                'created_by': current_user.id
+                'created_by': current_user.id,
+                'is_recurring': is_recurring,
+                'recurrence_pattern': recurrence_pattern if is_recurring else None,
+                'recurrence_end_date': recurrence_end_date if is_recurring and recurrence_end_date else None,
+                'rsvp_enabled': rsvp_enabled,
+                'rsvp_deadline': rsvp_deadline if rsvp_enabled and rsvp_deadline else None,
+                'rsvp_notify': rsvp_notify if rsvp_enabled else False,
+                'reminder_enabled': reminder_enabled,
+                'reminder_time': reminder_time if reminder_enabled else None,
+                'notification_method': notification_method if reminder_enabled else None,
+                'shared_with': shared_with if shared_with else None
             }
             
             event_insert = db.table('events').insert(event_data).execute()
             
-            flash('Event added successfully', 'success')
+            # If this was created from a template and user wants to save updates back to template
+            template_id = request.form.get('template_id')
+            update_template = 'update_template' in request.form
+            
+            if template_id and update_template:
+                template_data = {
+                    'event_title': title,
+                    'event_category': category,
+                    'event_location': location,
+                    'event_description': description,
+                    'all_day': time_str == '',
+                    'event_time': time_str,
+                    'recurrence_pattern': recurrence_pattern,
+                    'updated_at': datetime.now().isoformat()
+                }
+                
+                # Update the template with the new values
+                template_update = db.table('calendar_templates').update(template_data).eq('id', template_id).eq('family_id', current_user.family_id).execute()
+                flash('Event added and template updated successfully', 'success')
+            else:
+                flash('Event added successfully', 'success')
+                
             return redirect(url_for('calendar'))
         except Exception as e:
             flash(f'Error adding event: {str(e)}', 'danger')
             return render_template('add_event.html')
     
     # GET request - show the form
-    return render_template('add_event.html')
+    # Get other families the user can share events with
+    from database import db
+    families_response = db.table('families').select('id, name').neq('id', current_user.family_id).execute()
+    families = families_response.data
+    
+    # Check if we're using a template
+    template_id = request.args.get('template_id')
+    template = None
+    
+    if template_id:
+        # Get the template data
+        template_result = db.table('calendar_templates').select('*').eq('id', template_id).eq('family_id', current_user.family_id).execute()
+        if template_result.data:
+            template = template_result.data[0]
+    
+    # Pre-populate form fields from query parameters (used by template system)
+    form_data = {
+        'title': request.args.get('title', ''),
+        'category': request.args.get('category', 'Family'),
+        'location': request.args.get('location', ''),
+        'description': request.args.get('description', ''),
+        'all_day': request.args.get('all_day') == 'true',
+        'start_time': request.args.get('start_time', ''),
+        'end_time': request.args.get('end_time', ''),
+        'recurrence': request.args.get('recurrence', ''),
+        'template_id': template_id
+    }
+    
+    return render_template('add_event.html', families=families, template=template, form_data=form_data)
 
-@app.route('/edit_event/<event_id>', methods=['GET', 'POST'])
+@app.route('/event/<event_id>')
 @login_required
-def edit_event(event_id):
-    """Edit an existing event."""
+def get_event(event_id):
+    """Get event details for display in modal."""
     from database import db
     
-    # Get event data
-    event_response = db.table('events').select('*').eq('id', event_id).execute()
-    
-    if not event_response.data:
-        flash('Event not found', 'danger')
-        return redirect(url_for('calendar'))
-    
-    event = event_response.data[0]
-    
-    # Check if user has permission to edit this event
-    if event['family_id'] != current_user.family_id:
-        flash('You do not have permission to edit this event', 'danger')
-        return redirect(url_for('calendar'))
-    
-    if request.method == 'POST':
-        # Get form data
-        title = request.form.get('title')
-        date_str = request.form.get('date')
-        time_str = request.form.get('time')
-        location = request.form.get('location')
-        description = request.form.get('description')
+    # Check if this is a recurring event instance
+    if '_' in event_id:
+        # This is a recurring event instance
+        base_id, instance_date = event_id.split('_', 1)
         
-        # Validate required fields
-        if not title or not date_str or not time_str:
-            flash('Please fill in all required fields', 'danger')
-            return redirect(url_for('edit_event', event_id=event_id))
+        # Get the base event
+        event_response = db.table('events').select('*').eq('id', base_id).execute()
         
-        # Update event data
-        event_data = {
-            'title': title,
-            'date': date_str,
-            'time': time_str,
-            'location': location,
-            'description': description
+        if not event_response.data:
+            return jsonify({'error': 'Event not found'}), 404
+            
+        event = event_response.data[0]
+        
+        # Override the date with the instance date
+        event['date'] = instance_date
+        event['is_instance'] = True
+        event['instance_id'] = event_id
+    else:
+        # Regular event
+        event_response = db.table('events').select('*').eq('id', event_id).execute()
+        
+        if not event_response.data:
+            return jsonify({'error': 'Event not found'}), 404
+            
+        event = event_response.data[0]
+    
+    # Get RSVP responses if enabled
+    rsvp_responses = []
+    if event.get('rsvp_enabled'):
+        rsvp_response = db.table('event_rsvps').select('*').eq('event_id', event_id).execute()
+        if rsvp_response.data:
+            # Get usernames for each RSVP
+            for rsvp in rsvp_response.data:
+                user_response = db.table('users').select('username').eq('id', rsvp['user_id']).execute()
+                username = user_response.data[0]['username'] if user_response.data else 'Unknown'
+                
+                rsvp_responses.append({
+                    'user_id': rsvp['user_id'],
+                    'username': username,
+                    'response': rsvp['response']
+                })
+    
+    # Check if user can edit this event
+    can_edit = event['created_by'] == current_user.id or current_user.role == 'Admin'
+    
+    # Format response
+    response = {
+        'id': event_id,
+        'title': event['title'],
+        'date': event['date'],
+        'time': event['time'],
+        'description': event.get('description', ''),
+        'location': event.get('location', ''),
+        'category': event.get('category', 'family'),
+        'is_recurring': event.get('is_recurring', False),
+        'recurrence_pattern': event.get('recurrence_pattern', ''),
+        'rsvp_enabled': event.get('rsvp_enabled', False),
+        'rsvp_responses': rsvp_responses,
+        'reminder_enabled': event.get('reminder_enabled', False),
+        'reminder_time': event.get('reminder_time', '60'),
+        'notification_method': event.get('notification_method', 'app'),
+        'can_edit': can_edit
+    }
+    
+    return jsonify(response)
+
+@app.route('/event_rsvp', methods=['POST'])
+@login_required
+def event_rsvp():
+    """Handle RSVP responses for events."""
+    from database import db
+    
+    try:
+        data = request.json
+        event_id = data.get('event_id')
+        response_type = data.get('response')
+        
+        if not event_id or not response_type:
+            return jsonify({'success': False, 'message': 'Missing required fields'}), 400
+            
+        # Check if event exists
+        if '_' in event_id:
+            # This is a recurring event instance
+            base_id = event_id.split('_', 1)[0]
+            event_response = db.table('events').select('*').eq('id', base_id).execute()
+        else:
+            event_response = db.table('events').select('*').eq('id', event_id).execute()
+            
+        if not event_response.data:
+            return jsonify({'success': False, 'message': 'Event not found'}), 404
+            
+        # Check if user already responded
+        rsvp_response = db.table('event_rsvps').select('*').eq('event_id', event_id).eq('user_id', current_user.id).execute()
+        
+        if rsvp_response.data:
+            # Update existing RSVP
+            db.table('event_rsvps').update({'response': response_type}).eq('event_id', event_id).eq('user_id', current_user.id).execute()
+        else:
+            # Create new RSVP
+            import uuid
+            rsvp_id = str(uuid.uuid4())
+            
+            rsvp_data = {
+                'id': rsvp_id,
+                'event_id': event_id,
+                'user_id': current_user.id,
+                'response': response_type,
+                'timestamp': datetime.datetime.now().isoformat()
+            }
+            
+            db.table('event_rsvps').insert(rsvp_data).execute()
+        
+        # Get updated RSVP responses
+        updated_rsvp_response = db.table('event_rsvps').select('*').eq('event_id', event_id).execute()
+        rsvp_responses = []
+        
+        for rsvp in updated_rsvp_response.data:
+            user_response = db.table('users').select('username').eq('id', rsvp['user_id']).execute()
+            username = user_response.data[0]['username'] if user_response.data else 'Unknown'
+            
+            rsvp_responses.append({
+                'user_id': rsvp['user_id'],
+                'username': username,
+                'response': rsvp['response']
+            })
+        
+        return jsonify({'success': True, 'responses': rsvp_responses})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/update_event_dates', methods=['POST'])
+@login_required
+def update_event_dates():
+    """Update event dates after drag and drop or resize."""
+    from database import db
+    
+    try:
+        data = request.json
+        event_id = data.get('event_id')
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
+        
+        if not event_id or not start_date:
+            return jsonify({'success': False, 'message': 'Missing required fields'}), 400
+        
+        # Check if this is a recurring event instance
+        if '_' in event_id:
+            # For recurring instances, we create an exception
+            base_id, instance_date = event_id.split('_', 1)
+            
+            # Get the base event
+            event_response = db.table('events').select('*').eq('id', base_id).execute()
+            
+            if not event_response.data:
+                return jsonify({'success': False, 'message': 'Event not found'}), 404
+                
+            base_event = event_response.data[0]
+            
+            # Create an exception for this instance
+            import uuid
+            exception_id = str(uuid.uuid4())
+            
+            exception_data = {
+                'id': exception_id,
+                'event_id': base_id,
+                'original_date': instance_date,
+                'new_date': start_date,
+                'end_date': end_date
+            }
+            
+            db.table('event_exceptions').insert(exception_data).execute()
+        else:
+            # Regular event update
+            update_data = {'date': start_date}
+            if end_date:
+                update_data['end_date'] = end_date
+                
+            db.table('events').update(update_data).eq('id', event_id).execute()
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/import_calendar', methods=['POST'])
+@login_required
+def import_calendar():
+    """Import events from external calendar."""
+    from database import db
+    import uuid
+    
+    try:
+        source = request.form.get('source')
+        sync = 'sync' in request.form
+        
+        # In a real implementation, this would handle different calendar sources
+        # For now, we'll just handle iCal file uploads
+        if 'calendar_file' in request.files:
+            file = request.files['calendar_file']
+            
+            if file.filename == '':
+                return jsonify({'success': False, 'message': 'No file selected'}), 400
+                
+            if file:
+                # Process the iCal file
+                # This is a simplified version - a real implementation would use a library like icalendar
+                # to properly parse the file
+                
+                # Mock implementation - just create a sample event
+                event_id = str(uuid.uuid4())
+                
+                event_data = {
+                    'id': event_id,
+                    'title': 'Imported Event',
+                    'date': '2025-03-15',
+                    'time': '14:00:00',
+                    'description': 'This event was imported from an external calendar',
+                    'location': 'External Location',
+                    'category': 'family',
+                    'family_id': current_user.family_id,
+                    'created_by': current_user.id,
+                    'is_recurring': False
+                }
+                
+                db.table('events').insert(event_data).execute()
+                
+                return jsonify({'success': True, 'message': 'Calendar imported successfully'})
+        
+        return jsonify({'success': False, 'message': 'No file uploaded or unsupported source'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/export_calendar')
+@login_required
+def export_calendar():
+    """Export calendar events to iCal format."""
+    try:
+        from database import db
+        import datetime
+        from icalendar import Calendar, ICalEvent, vText
+        from flask import Response
+        import pytz
+        
+        # Get filter parameters
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        category = request.args.get('category')
+        member_id = request.args.get('member_id')
+        include_shared = request.args.get('include_shared', 'true') == 'true'
+        
+        # Get all events for the user's family
+        query = db.table('events').select('*').eq('family_id', current_user.family_id)
+        
+        # Apply date filters if provided
+        if start_date:
+            query = query.gte('date', start_date)
+        if end_date:
+            query = query.lte('date', end_date)
+            
+        # Apply category filter if provided
+        if category and category != 'all':
+            query = query.eq('category', category)
+            
+        # Apply member filter if provided
+        if member_id and member_id != 'all':
+            query = query.eq('created_by', member_id)
+            
+        events_response = query.execute()
+        events = events_response.data
+        
+        # Also get shared events that this family can see
+        shared_events = []
+        if include_shared:
+            shared_query = db.table('events').select('*').neq('family_id', current_user.family_id)
+            
+            # Apply date filters if provided
+            if start_date:
+                shared_query = shared_query.gte('date', start_date)
+            if end_date:
+                shared_query = shared_query.lte('date', end_date)
+                
+            # Apply category filter if provided
+            if category and category != 'all':
+                shared_query = shared_query.eq('category', category)
+                
+            shared_response = shared_query.execute()
+            
+            # Filter shared events to only include those shared with this family
+            for event_data in shared_response.data:
+                shared_with = event_data.get('shared_with', '')
+                if shared_with and current_user.family_id in shared_with.split(','):
+                    events.append(event_data)
+        
+        # Create a new calendar
+        cal = Calendar()
+        cal.add('prodid', '-//FamilySphere//familysphere.app//')
+        cal.add('version', '2.0')
+        cal.add('calscale', 'GREGORIAN')
+        cal.add('method', 'PUBLISH')
+        cal.add('x-wr-calname', f'FamilySphere - {current_user.username}\'s Family Calendar')
+        
+        # Add events to the calendar
+        for event in events:
+            event = ICalEvent()
+            
+            # Required fields
+            event.add('summary', event['title'])
+            
+            # Convert date string to datetime
+            event_date = datetime.datetime.strptime(event['date'], '%Y-%m-%d').date()
+            
+            # Handle all-day events vs. timed events
+            if event.get('all_day'):
+                # All-day events need a DATE value
+                event.add('dtstart', event_date, parameters={'VALUE': 'DATE'})
+                
+                # For all-day events, the end date should be the day after (per iCalendar spec)
+                end_date = event_date + datetime.timedelta(days=1)
+                event.add('dtend', end_date, parameters={'VALUE': 'DATE'})
+            else:
+                # Add time if available
+                if event.get('time'):
+                    try:
+                        # Try parsing with seconds
+                        event_time = datetime.datetime.strptime(event['time'], '%H:%M:%S').time()
+                    except ValueError:
+                        # If that fails, try without seconds
+                        event_time = datetime.datetime.strptime(event['time'], '%H:%M').time()
+                    
+                    event_start = datetime.datetime.combine(event_date, event_time)
+                    
+                    # Add timezone information (assuming Eastern Time - can be customized later)
+                    local_tz = pytz.timezone('America/New_York')
+                    event_start = local_tz.localize(event_start)
+                    
+                    event.add('dtstart', event_start)
+                    
+                    # Add end time if available, otherwise default to 1 hour
+                    if event.get('end_time'):
+                        try:
+                            # Try parsing with seconds
+                            end_time = datetime.datetime.strptime(event['end_time'], '%H:%M:%S').time()
+                        except ValueError:
+                            # If that fails, try without seconds
+                            end_time = datetime.datetime.strptime(event['end_time'], '%H:%M').time()
+                            
+                        end_datetime = datetime.datetime.combine(event_date, end_time)
+                        end_datetime = local_tz.localize(end_datetime)
+                    else:
+                        end_datetime = event_start + datetime.timedelta(hours=1)
+                    
+                    event.add('dtend', end_datetime)
+                else:
+                    # Fallback for events with date but no time
+                    event.add('dtstart', event_date, parameters={'VALUE': 'DATE'})
+                    event.add('dtend', event_date + datetime.timedelta(days=1), parameters={'VALUE': 'DATE'})
+            
+            # Optional fields
+            if event.get('description'):
+                event.add('description', event['description'])
+            
+            if event.get('location'):
+                event.add('location', vText(event['location']))
+            
+            # Add category
+            if event.get('category'):
+                event.add('categories', event['category'])
+            
+            # Add unique ID
+            event.add('uid', f"{event['id']}@familysphere.app")
+            
+            # Add creation timestamp
+            event.add('dtstamp', datetime.datetime.now(pytz.utc))
+            
+            # Handle recurring events
+            if event.get('is_recurring') or event.get('recurrence_pattern'):
+                recurrence_pattern = event.get('recurrence_pattern')
+                
+                if recurrence_pattern == 'daily':
+                    event.add('rrule', {'FREQ': 'DAILY'})
+                elif recurrence_pattern == 'weekly':
+                    event.add('rrule', {'FREQ': 'WEEKLY'})
+                elif recurrence_pattern == 'biweekly':
+                    event.add('rrule', {'FREQ': 'WEEKLY', 'INTERVAL': 2})
+                elif recurrence_pattern == 'monthly':
+                    event.add('rrule', {'FREQ': 'MONTHLY'})
+                elif recurrence_pattern == 'yearly':
+                    event.add('rrule', {'FREQ': 'YEARLY'})
+                
+                # Add end date if specified
+                if event.get('recurrence_end_date'):
+                    end_date = datetime.datetime.strptime(event['recurrence_end_date'], '%Y-%m-%d').date()
+                    event.add('rrule', {'UNTIL': end_date})
+            
+            # Add organizer if available
+            if event.get('created_by'):
+                # Get user info
+                user_response = db.table('users').select('username, email').eq('id', event['created_by']).execute()
+                if user_response.data:
+                    user = user_response.data[0]
+                    if user.get('email'):
+                        event.add('organizer', f"mailto:{user['email']}")
+            
+            # Add the event to the calendar
+            cal.add_component(event)
+        
+        # Generate iCal file
+        ical_data = cal.to_ical()
+        
+        # Create response with iCal data
+        response = Response(ical_data, mimetype='text/calendar')
+        filename = f"familysphere_calendar_{datetime.datetime.now().strftime('%Y%m%d')}.ics"
+        response.headers['Content-Disposition'] = f'attachment; filename={filename}'
+        
+        # Add success flash message
+        flash("Calendar exported successfully!", "success")
+        
+        return response
+    
+    except Exception as e:
+        app.logger.error(f"Error exporting calendar: {str(e)}")
+        flash(f"Error exporting calendar: {str(e)}", "danger")
+        return redirect(url_for('calendar'))
+
+@app.route('/event_reminders')
+@login_required
+def event_reminders():
+    """Display and manage event reminders for the user."""
+    from database import db
+    import datetime
+    
+    # Get all events with reminders for the user
+    events_response = db.table('events').select('*').eq('family_id', current_user.family_id).eq('reminder_enabled', True).execute()
+    events_with_reminders = events_response.data
+    
+    # Current date and time for calculating upcoming reminders
+    now = datetime.datetime.now()
+    
+    # Process events to determine upcoming reminders
+    upcoming_reminders = []
+    for event in events_with_reminders:
+        event_date = datetime.datetime.strptime(f"{event['date']}T{event['time'] if event['time'] else '00:00:00'}", "%Y-%m-%dT%H:%M:%S")
+        
+        # Calculate reminder time based on minutes before event
+        reminder_minutes = int(event.get('reminder_time', 60))  # Default to 1 hour if not specified
+        reminder_time = event_date - datetime.timedelta(minutes=reminder_minutes)
+        
+        # Only include future reminders
+        if reminder_time > now:
+            upcoming_reminders.append({
+                'event_id': event['id'],
+                'title': event['title'],
+                'event_date': event_date,
+                'reminder_time': reminder_time,
+                'minutes_before': reminder_minutes,
+                'notification_method': event.get('notification_method', 'app')
+            })
+    
+    # Sort reminders by reminder time
+    upcoming_reminders.sort(key=lambda x: x['reminder_time'])
+    
+    return render_template('event_reminders.html', reminders=upcoming_reminders)
+
+@app.route('/check_reminders')
+@login_required
+def check_reminders():
+    """API endpoint to check for due reminders."""
+    from database import db
+    import datetime
+    
+    # Get all events with reminders for the user
+    events_response = db.table('events').select('*').eq('family_id', current_user.family_id).eq('reminder_enabled', True).execute()
+    events_with_reminders = events_response.data
+    
+    # Current date and time
+    now = datetime.datetime.now()
+    
+    # Process events to determine due reminders
+    due_reminders = []
+    for event in events_with_reminders:
+        event_date = datetime.datetime.strptime(f"{event['date']}T{event['time'] if event['time'] else '00:00:00'}", "%Y-%m-%dT%H:%M:%S")
+        
+        # Calculate reminder time based on minutes before event
+        reminder_minutes = int(event.get('reminder_time', 60))  # Default to 1 hour if not specified
+        reminder_time = event_date - datetime.timedelta(minutes=reminder_minutes)
+        
+        # Check if reminder is due (within the last 5 minutes)
+        time_diff = (now - reminder_time).total_seconds() / 60
+        if 0 <= time_diff <= 5:  # Reminder is due within the last 5 minutes
+            due_reminders.append({
+                'event_id': event['id'],
+                'title': event['title'],
+                'event_date': event_date.strftime("%Y-%m-%d %H:%M"),
+                'notification_method': event.get('notification_method', 'app')
+            })
+    
+    return jsonify({'reminders': due_reminders})
+
+@app.route('/update_reminder_preferences', methods=['POST'])
+@login_required
+def update_reminder_preferences():
+    """Update user's reminder preferences."""
+    from database import db
+    
+    try:
+        data = request.json
+        event_id = data.get('event_id')
+        reminder_enabled = data.get('reminder_enabled', False)
+        reminder_time = data.get('reminder_time')
+        notification_method = data.get('notification_method')
+        
+        if not event_id:
+            return jsonify({'success': False, 'message': 'Missing event ID'}), 400
+            
+        # Check if user can edit this event
+        event_response = db.table('events').select('created_by').eq('id', event_id).execute()
+        if not event_response.data:
+            return jsonify({'success': False, 'message': 'Event not found'}), 404
+            
+        event = event_response.data[0]
+        if event['created_by'] != current_user.id and current_user.role != 'Admin':
+            return jsonify({'success': False, 'message': 'Not authorized to update this event'}), 403
+            
+        # Update reminder settings
+        update_data = {
+            'reminder_enabled': reminder_enabled
         }
         
-        # Update event in database
-        db.table('events').update(event_data).eq('id', event_id).execute()
+        if reminder_enabled:
+            update_data['reminder_time'] = reminder_time
+            update_data['notification_method'] = notification_method
         
-        flash('Event updated successfully', 'success')
-        return redirect(url_for('calendar'))
-    
-    return render_template('edit_event.html', event=event)
-
-@app.route('/delete_event/<event_id>', methods=['POST'])
-@login_required
-def delete_event(event_id):
-    """Delete an event from the calendar."""
-    from database import db
-    
-    # Get event data
-    event_response = db.table('events').select('*').eq('id', event_id).execute()
-    
-    if not event_response.data:
-        flash('Event not found', 'danger')
-        return redirect(url_for('calendar'))
-    
-    event = event_response.data[0]
-    
-    # Check if user has permission to delete this event
-    if event['family_id'] != current_user.family_id:
-        flash('You do not have permission to delete this event', 'danger')
-        return redirect(url_for('calendar'))
-    
-    # Delete event from database
-    db.table('events').delete().eq('id', event_id).execute()
-    
-    flash('Event deleted successfully', 'success')
-    return redirect(url_for('calendar'))
+        db.table('events').update(update_data).eq('id', event_id).execute()
+        
+        return jsonify({'success': True, 'message': 'Reminder preferences updated'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 # Tasks routes
 @app.route('/tasks')
@@ -918,12 +1496,19 @@ def add_finance():
     
     if request.method == 'POST':
         try:
-            type = request.form.get('type')
+            finance_type = request.form.get('type')
             amount = request.form.get('amount')
-            description = request.form.get('description')
+            title = request.form.get('title', '')
+            description = request.form.get('description', '')
+            category = request.form.get('category', 'General')
+            due_date = request.form.get('due_date', '')
+            recurring = 'recurring' in request.form
+            assigned_to = request.form.get('assigned_to', '')
+            target_date = request.form.get('target_date', '')
+            priority = request.form.get('priority', 'Medium')
             
             # Validate input
-            if not type or not amount:
+            if not finance_type or not amount:
                 flash('Type and amount are required', 'danger')
                 return render_template('add_finance.html')
             
@@ -933,27 +1518,63 @@ def add_finance():
             
             finance_id = str(uuid.uuid4())
             
-            # Insert finance record into database
+            # Prepare finance data based on type
             finance_data = {
                 'id': finance_id,
-                'type': type,
-                'title': type,  # Using type as title since title is required
+                'type': finance_type,
                 'amount': float(amount),
                 'description': description,
                 'family_id': current_user.family_id,
+                'created_by': current_user.id,
                 'created_at': datetime.now().isoformat()
             }
             
+            # Add type-specific fields
+            if finance_type == 'Budget':
+                finance_data['title'] = title or 'Monthly Budget'
+                finance_data['category'] = category
+                finance_data['recurring'] = recurring
+                
+            elif finance_type == 'Expense':
+                finance_data['title'] = title or 'Expense'
+                finance_data['category'] = category
+                finance_data['date'] = due_date or datetime.now().isoformat()
+                finance_data['paid_by'] = assigned_to or current_user.id
+                
+            elif finance_type == 'Goal':
+                finance_data['title'] = title or 'Savings Goal'
+                finance_data['target_date'] = target_date
+                finance_data['current_amount'] = 0.0
+                finance_data['target_amount'] = float(amount)
+                finance_data['priority'] = priority
+                
+            elif finance_type == 'Allowance':
+                finance_data['title'] = title or 'Allowance'
+                finance_data['assigned_to'] = assigned_to
+                finance_data['recurring'] = recurring
+                finance_data['frequency'] = request.form.get('frequency', 'Weekly')
+            
+            # Insert finance record into database
             finance_insert = db.table('finances').insert(finance_data).execute()
             
-            flash('Finance record added successfully', 'success')
+            flash(f'{finance_type} added successfully', 'success')
             return redirect(url_for('finances'))
         except Exception as e:
             flash(f'Error adding finance record: {str(e)}', 'danger')
             return render_template('add_finance.html')
     
     # GET request - show the form
-    return render_template('add_finance.html')
+    family_members = []
+    try:
+        from database import db
+        # Get family members for assignment
+        family_data = db.table('users').select('id', 'username').eq('family_id', current_user.family_id).execute()
+        if family_data and hasattr(family_data, 'data'):
+            family_members = family_data.data
+    except Exception as e:
+        print(f"Error getting family members: {e}")
+    
+    return render_template('add_finance.html', family_members=family_members)
 
 @app.route('/edit_finance/<finance_id>', methods=['GET', 'POST'])
 @login_required
@@ -1274,31 +1895,119 @@ def add_memory():
     from datetime import datetime
     
     if request.method == 'POST':
-        title = request.form.get('title')
-        description = request.form.get('description')
-        photo_url = request.form.get('photo_url')  # In a real app, this would be file upload
-        memory_date = request.form.get('date')
+        try:
+            title = request.form.get('title')
+            description = request.form.get('description', '')
+            photo_url = request.form.get('photo_url', '')  # In a real app, this would be file upload
+            memory_date = request.form.get('date', datetime.now().strftime('%Y-%m-%d'))
+            location = request.form.get('location', '')
+            tags = request.form.get('tags', '')
+            album_id = request.form.get('album_id', '')
+            privacy = request.form.get('privacy', 'family') # family, private, shared
+            
+            # Create new memory with UUID
+            memory_id = str(uuid.uuid4())
+            memory_data = {
+                'id': memory_id,
+                'title': title,
+                'description': description,
+                'photo_url': photo_url,
+                'date': memory_date,
+                'location': location,
+                'tags': tags,
+                'privacy': privacy,
+                'family_id': current_user.family_id,
+                'created_by': current_user.id,
+                'created_at': datetime.now().isoformat()
+            }
+            
+            # Add to album if specified
+            if album_id:
+                memory_data['album_id'] = album_id
+                
+                # Check if album exists, create if not
+                album_check = db.table('albums').select('id').eq('id', album_id).execute()
+                if not album_check.data:
+                    # Get album name or use default
+                    album_name = request.form.get('album_name', 'Unnamed Album')
+                    album_data = {
+                        'id': album_id,
+                        'name': album_name,
+                        'description': f"Album created on {datetime.now().strftime('%Y-%m-%d')}",
+                        'cover_photo_id': memory_id,
+                        'family_id': current_user.family_id,
+                        'created_by': current_user.id,
+                        'created_at': datetime.now().isoformat()
+                    }
+                    db.table('albums').insert(album_data).execute()
+            
+            # Insert memory into database
+            db.table('memories').insert(memory_data).execute()
+            
+            # Process people tags (family members in the photo)
+            people_tags = request.form.getlist('people')
+            if people_tags:
+                for person_id in people_tags:
+                    tag_id = str(uuid.uuid4())
+                    tag_data = {
+                        'id': tag_id,
+                        'memory_id': memory_id,
+                        'user_id': person_id,
+                        'created_at': datetime.now().isoformat()
+                    }
+                    db.table('memory_people').insert(tag_data).execute()
+            
+            flash('Memory added successfully!', 'success')
+            return redirect(url_for('memories'))
+        except Exception as e:
+            flash(f'Error adding memory: {str(e)}', 'danger')
+            return render_template('add_memory.html')
+            
+    # For GET request, get family members and albums for dropdown
+    family_members = []
+    albums = []
+    try:
+        # Get family members for tagging
+        family_data = db.table('users').select('id', 'username').eq('family_id', current_user.family_id).execute()
+        if family_data and hasattr(family_data, 'data'):
+            family_members = family_data.data
+            
+        # Get existing albums
+        albums_data = db.table('albums').select('id', 'name').eq('family_id', current_user.family_id).execute()
+        if albums_data and hasattr(albums_data, 'data'):
+            albums = albums_data.data
+    except Exception as e:
+        print(f"Error retrieving data for memory form: {e}")
         
-        # Create new memory with UUID
-        memory_id = str(uuid.uuid4())
-        memory_data = {
-            'id': memory_id,
-            'title': title,
-            'description': description,
-            'photo_url': photo_url,
-            'date': memory_date,
-            'family_id': current_user.family_id,
-            'created_by': current_user.id,
-            'created_at': datetime.now().isoformat()
-        }
-        
-        # Insert memory into database
-        db.table('memories').insert(memory_data).execute()
-        
-        flash('Memory added successfully!', 'success')
-        return redirect(url_for('memories'))
-        
-    return render_template('add_memory.html')
+    return render_template('add_memory.html', family_members=family_members, albums=albums)
+
+@app.route('/memories/album/add', methods=['POST'])
+@login_required
+def add_album():
+    """Add a new photo album."""
+    from database import db
+    import uuid
+    from datetime import datetime
+    
+    name = request.form.get('name')
+    description = request.form.get('description', '')
+    
+    # Create new album with UUID
+    album_id = str(uuid.uuid4())
+    album_data = {
+        'id': album_id,
+        'name': name,
+        'description': description,
+        'family_id': current_user.family_id,
+        'created_by': current_user.id,
+        'created_at': datetime.now().isoformat()
+    }
+    
+    # Insert album into database
+    db.table('albums').insert(album_data).execute()
+    
+    flash('Album created successfully!', 'success')
+    return redirect(url_for('memories'))
 
 @app.route('/memories/share/<memory_id>', methods=['POST'])
 @login_required
@@ -1349,6 +2058,7 @@ def inventory():
 @app.route('/inventory/add', methods=['POST'])
 @login_required
 def add_inventory_item():
+    """Add a new inventory item."""
     from database import db
     import uuid
     
@@ -1357,6 +2067,27 @@ def add_inventory_item():
     category = request.form.get('category', 'General')
     location = request.form.get('location', '')
     notes = request.form.get('notes', '')
+    purchase_date = request.form.get('purchase_date', '')
+    expiration_date = request.form.get('expiration_date', '')
+    low_stock_threshold = request.form.get('low_stock_threshold', '')
+    unit = request.form.get('unit', '')
+    price = request.form.get('price', '')
+    barcode = request.form.get('barcode', '')
+    auto_replenish = 'auto_replenish' in request.form
+    
+    # Convert low_stock_threshold to int if provided
+    if low_stock_threshold:
+        try:
+            low_stock_threshold = int(low_stock_threshold)
+        except ValueError:
+            low_stock_threshold = None
+    
+    # Convert price to float if provided
+    if price:
+        try:
+            price = float(price)
+        except ValueError:
+            price = None
     
     # Create new inventory item with UUID
     item_id = str(uuid.uuid4())
@@ -1367,14 +2098,122 @@ def add_inventory_item():
         'category': category,
         'location': location,
         'notes': notes,
+        'purchase_date': purchase_date,
         'family_id': current_user.family_id,
-        'created_at': datetime.now().isoformat()
+        'created_by': current_user.id,
+        'created_at': datetime.now().isoformat(),
+        'last_updated': datetime.now().isoformat()
     }
+    
+    # Add optional fields if they exist
+    if expiration_date:
+        item_data['expiration_date'] = expiration_date
+    
+    if low_stock_threshold is not None:
+        item_data['low_stock_threshold'] = low_stock_threshold
+    
+    if unit:
+        item_data['unit'] = unit
+    
+    if price is not None:
+        item_data['price'] = price
+    
+    if barcode:
+        item_data['barcode'] = barcode
+    
+    item_data['auto_replenish'] = auto_replenish
     
     # Insert item into database
     db.table('inventory').insert(item_data).execute()
     
-    flash('Item added to inventory successfully!')
+    # Check if below threshold and add to shopping list if auto_replenish is enabled
+    if auto_replenish and low_stock_threshold is not None and quantity <= low_stock_threshold:
+        try:
+            # Add to shopping list
+            shopping_item_id = str(uuid.uuid4())
+            shopping_item = {
+                'id': shopping_item_id,
+                'item_name': item_name,
+                'quantity': max(low_stock_threshold - quantity + 1, 1),  # At least 1
+                'inventory_item_id': item_id,
+                'family_id': current_user.family_id,
+                'created_by': current_user.id,
+                'created_at': datetime.now().isoformat(),
+                'status': 'Active'
+            }
+            db.table('shopping_list').insert(shopping_item).execute()
+            flash(f'Item added to inventory successfully! Also added to shopping list due to low stock.')
+        except Exception as e:
+            flash(f'Item added to inventory successfully! (Shopping list error: {str(e)})')
+    else:
+        flash('Item added to inventory successfully!')
+    
+    return redirect(url_for('inventory'))
+
+@app.route('/inventory/update/<item_id>', methods=['POST'])
+@login_required
+def update_inventory_item(item_id):
+    """Update an inventory item's quantity"""
+    from database import db
+    from datetime import datetime
+    
+    action = request.form.get('action')
+    quantity = int(request.form.get('quantity', 1))
+    
+    try:
+        # Get current item data
+        item_response = db.table('inventory').select('*').eq('id', item_id).single().execute()
+        if not item_response.data:
+            flash('Item not found!', 'danger')
+            return redirect(url_for('inventory'))
+        
+        item = item_response.data
+        current_quantity = item.get('quantity', 0)
+        low_stock_threshold = item.get('low_stock_threshold')
+        
+        # Update quantity based on action
+        if action == 'increment':
+            new_quantity = current_quantity + quantity
+        elif action == 'decrement':
+            new_quantity = max(0, current_quantity - quantity)
+        else:  # Set to specific value
+            new_quantity = quantity
+        
+        # Update item in database
+        db.table('inventory').update({
+            'quantity': new_quantity,
+            'last_updated': datetime.now().isoformat()
+        }).eq('id', item_id).execute()
+        
+        # Check if below threshold for auto-replenish
+        if item.get('auto_replenish', False) and low_stock_threshold is not None and new_quantity <= low_stock_threshold:
+            # Check if already in shopping list
+            shopping_check = db.table('shopping_list').select('id').eq('inventory_item_id', item_id).eq('status', 'Active').execute()
+            
+            if not shopping_check.data:
+                # Add to shopping list
+                import uuid
+                shopping_item_id = str(uuid.uuid4())
+                shopping_item = {
+                    'id': shopping_item_id,
+                    'item_name': item.get('item_name'),
+                    'quantity': max(low_stock_threshold - new_quantity + 1, 1),  # At least 1
+                    'inventory_item_id': item_id,
+                    'family_id': current_user.family_id,
+                    'created_by': current_user.id,
+                    'created_at': datetime.now().isoformat(),
+                    'status': 'Active'
+                }
+                db.table('shopping_list').insert(shopping_item).execute()
+                flash(f'Item updated! Also added to shopping list due to low stock.')
+            else:
+                flash('Item updated successfully!')
+        else:
+            flash('Item updated successfully!')
+            
+    except Exception as e:
+        flash(f'Error updating item: {str(e)}', 'danger')
+    
     return redirect(url_for('inventory'))
 
 # Health routes
@@ -1446,13 +2285,120 @@ def add_health_record():
         'created_at': datetime.now().isoformat()
     }
     
+    # Add type-specific fields
+    if record_type == 'medication':
+        medication = request.form.get('medication', '')
+        dosage = request.form.get('dosage', '')
+        schedule = request.form.get('schedule', '')
+        notes = request.form.get('notes', '')
+        reminder_time = request.form.get('reminder_time')
+        start_date = request.form.get('start_date', datetime.now().strftime('%Y-%m-%d'))
+        end_date = request.form.get('end_date', '')
+        
+        record_data.update({
+            'medication': medication,
+            'dosage': dosage,
+            'schedule': schedule,
+            'notes': notes,
+            'reminder_time': reminder_time,
+            'start_date': start_date
+        })
+        
+        if end_date:
+            record_data['end_date'] = end_date
+            
+    elif record_type == 'appointment':
+        doctor = request.form.get('doctor', '')
+        specialty = request.form.get('specialty', '')
+        location = request.form.get('location', '')
+        date = request.form.get('date', '')
+        time = request.form.get('time', '')
+        notes = request.form.get('notes', '')
+        reminder = 'reminder' in request.form
+        
+        record_data.update({
+            'doctor': doctor,
+            'specialty': specialty,
+            'location': location,
+            'date': date,
+            'time': time,
+            'notes': notes,
+            'reminder': reminder
+        })
+        
+    elif record_type == 'measurement':
+        measurement_type = request.form.get('measurement_type', '') # weight, height, blood pressure, etc.
+        value = request.form.get('value', '')
+        unit = request.form.get('unit', '')
+        date = request.form.get('date', datetime.now().strftime('%Y-%m-%d'))
+        notes = request.form.get('notes', '')
+        
+        record_data.update({
+            'measurement_type': measurement_type,
+            'value': value,
+            'unit': unit,
+            'date': date,
+            'notes': notes
+        })
+        
+    elif record_type == 'allergy':
+        allergen = request.form.get('allergen', '')
+        severity = request.form.get('severity', 'Medium') # Mild, Medium, Severe
+        symptoms = request.form.get('symptoms', '')
+        treatment = request.form.get('treatment', '')
+        notes = request.form.get('notes', '')
+        
+        record_data.update({
+            'allergen': allergen,
+            'severity': severity,
+            'symptoms': symptoms,
+            'treatment': treatment,
+            'notes': notes
+        })
+        
+    elif record_type == 'immunization':
+        vaccine = request.form.get('vaccine', '')
+        date = request.form.get('date', datetime.now().strftime('%Y-%m-%d'))
+        location = request.form.get('location', '')
+        next_due = request.form.get('next_due', '')
+        notes = request.form.get('notes', '')
+        
+        record_data.update({
+            'vaccine': vaccine,
+            'date': date,
+            'location': location,
+            'notes': notes
+        })
+        
+        if next_due:
+            record_data['next_due'] = next_due
+    
     # Insert record into database
     db.table('health').insert(record_data).execute()
     
-    flash('Health record added successfully!')
+    # Set reminder if needed for medication or appointment
+    if record_type in ['medication', 'appointment'] and record_data.get('reminder_time') or record_data.get('reminder'):
+        try:
+            reminder_id = str(uuid.uuid4())
+            reminder_data = {
+                'id': reminder_id,
+                'user_id': user_id,
+                'type': f'health_{record_type}',
+                'record_id': record_id,
+                'time': record_data.get('reminder_time') or f"{record_data.get('date')} {record_data.get('time')}",
+                'message': f"Reminder: {record_data.get('medication') or f'Appointment with {record_data.get('doctor')}'}",
+                'status': 'Active',
+                'created_at': datetime.now().isoformat()
+            }
+            db.table('reminders').insert(reminder_data).execute()
+            flash(f'Health record added successfully with reminder!')
+        except Exception as e:
+            flash(f'Health record added successfully! (Reminder error: {str(e)})')
+    else:
+        flash('Health record added successfully!')
+    
     return redirect(url_for('health'))
 
-# Emergency routes
 @app.route('/emergency')
 @login_required
 def emergency():
@@ -1466,11 +2412,26 @@ def emergency():
     emergency_contacts_response = db.table('emergency_contacts').select('*').eq('family_id', current_user.family_id).execute()
     emergency_contacts = [EmergencyContact.from_dict(contact) for contact in emergency_contacts_response.data]
     
+    # Get family members for medical information
+    family_members_response = db.table('users').select('*').eq('family_id', current_user.family_id).execute()
+    family_members = family_members_response.data
+    
+    # Get medications for each family member
+    for member in family_members:
+        medications_response = db.table('health').select('*').eq('user_id', member['id']).execute()
+        member['medications'] = medications_response.data
+    
+    # In a real app, this would come from a location tracking table
+    # For now, we'll return an empty list - the UI will handle this gracefully
+    family_locations = []
+    
     spherebot_suggestion = get_spherebot_suggestion("emergency")
     
     return render_template('emergency.html', 
                           active_emergencies=active_emergencies,
                           emergency_contacts=emergency_contacts,
+                          family_members=family_members,
+                          family_locations=family_locations,
                           spherebot_suggestion=spherebot_suggestion)
 
 @app.route('/emergency/sos', methods=['POST'])
@@ -1520,6 +2481,7 @@ def add_emergency_contact():
     address = request.form.get('address', '')
     notes = request.form.get('notes', '')
     is_primary = 'is_primary' in request.form
+    is_medical = 'is_medical' in request.form
     
     # Create new emergency contact with UUID
     contact_id = str(uuid.uuid4())
@@ -1532,6 +2494,7 @@ def add_emergency_contact():
         'address': address,
         'notes': notes,
         'is_primary': is_primary,
+        'is_medical': is_medical,
         'family_id': current_user.family_id,
         'created_at': datetime.now().isoformat()
     }
@@ -1552,6 +2515,10 @@ def settings():
     settings_response = db.table('settings').select('*').eq('user_id', current_user.id).execute()
     user_settings = settings_response.data[0] if settings_response.data else None
     
+    # Get family information
+    family_response = db.table('families').select('*').eq('id', current_user.family_id).execute()
+    family_name = family_response.data[0]['name'] if family_response.data else 'No Family'
+    
     # Create default settings if none exists
     if not user_settings:
         user_settings = {
@@ -1564,6 +2531,9 @@ def settings():
             'dashboard_widgets': 'calendar,tasks,chat,finances'
         }
         db.table('settings').insert(user_settings).execute()
+    
+    # Add family name to settings
+    user_settings['family_name'] = family_name
     
     if request.method == 'POST':
         theme = request.form.get('theme')
@@ -1630,54 +2600,394 @@ def spherebot():
     return render_template('spherebot.html')
 
 @app.route('/spherebot/query', methods=['POST'])
+@csrf.exempt  # Exempt this route from CSRF protection for testing
 @login_required
 def spherebot_query():
     """Handle SphereBot AI queries and return responses."""
-    data = request.get_json()
-    query = data.get('query', '')
-    
-    # Determine the context based on the query content
-    context = "general"
-    
-    # Check for context keywords in the query
-    context_keywords = {
-        "calendar": ["calendar", "schedule", "event", "appointment", "meeting", "remind", "when"],
-        "tasks": ["task", "chore", "assignment", "todo", "to-do", "to do", "work", "job"],
-        "finance": ["money", "budget", "finance", "spending", "expense", "cost", "save", "bill"],
-        "chat": ["message", "chat", "conversation", "talk", "discuss", "communicate"],
-        "memory": ["photo", "picture", "memory", "album", "remember", "moment", "capture"],
-        "inventory": ["inventory", "item", "stock", "supply", "grocery", "shopping", "list"],
-        "health": ["health", "medication", "medicine", "doctor", "appointment", "prescription"],
-        "emergency": ["emergency", "contact", "urgent", "crisis", "help", "sos"],
-        "family": ["family", "member", "relative", "relationship", "invite", "join"]
-    }
-    
-    for ctx, keywords in context_keywords.items():
-        if any(keyword in query.lower() for keyword in keywords):
-            context = ctx
-            break
-    
-    # Get AI-powered suggestion based on context and query
-    response = get_spherebot_suggestion(context)
-    
-    # If no specific response was generated, provide a fallback
-    if not response:
-        fallback_responses = [
-            "I'm here to help with your family coordination. What would you like assistance with?",
-            "I can help with calendars, tasks, finances, and more. What do you need?",
-            "I'm your family assistant. How can I make your day easier?",
-            "I'm analyzing your family data to provide better suggestions. What can I help with now?",
-            "I'm learning more about your family's needs. Is there something specific you're looking for?"
-        ]
-        response = random.choice(fallback_responses)
-    
-    # Log the interaction for future improvement
-    # In a real implementation, this would be stored in a database
-    print(f"SphereBot Query: {query}, Context: {context}, Response: {response}")
-    
-    return jsonify({"response": response})
+    try:
+        # Validate request
+        if not request.is_json:
+            return jsonify({"error": "Request must be JSON"}), 400
+            
+        data = request.get_json()
+        
+        if not data or 'query' not in data:
+            return jsonify({"error": "Missing query parameter"}), 400
+            
+        query = data['query']
+        if not query or not isinstance(query, str):
+            return jsonify({"error": "Invalid query parameter"}), 400
+        
+        # Get the Grok API settings
+        grok_api_key = current_app.config.get('GROK_API_KEY')
+        grok_api_url = current_app.config.get('GROK_API_URL')
+        grok_model = current_app.config.get('GROK_MODEL')
+        
+        # Determine the context based on the query content
+        context_keywords = {
+            "calendar": ["calendar", "schedule", "event", "appointment", "meeting", "remind", "when"],
+            "tasks": ["task", "chore", "assignment", "todo", "to-do", "to do", "work", "job"],
+            "finance": ["money", "budget", "finance", "spending", "expense", "cost", "save", "bill", "payment"],
+            "chat": ["message", "chat", "conversation", "talk", "discuss", "communicate"],
+            "memory": ["photo", "picture", "memory", "album", "remember", "moment", "capture"],
+            "inventory": ["inventory", "item", "stock", "supply", "grocery", "shopping", "list"],
+            "health": ["health", "medication", "medicine", "doctor", "appointment", "prescription"],
+            "emergency": ["emergency", "contact", "urgent", "crisis", "help", "sos"],
+            "family": ["family", "member", "relative", "relationship", "invite", "join"]
+        }
+        
+        context = "general"
+        for ctx, keywords in context_keywords.items():
+            if any(keyword in query.lower() for keyword in keywords):
+                context = ctx
+                break
+                
+        print(f"Determined context: {context}")
+        
+        # Gather relevant context data based on the determined context
+        context_data = {}
+        
+        if current_user.is_authenticated:
+            # Add user info
+            context_data['user'] = {
+                'id': current_user.id,
+                'username': current_user.username,
+                'role': current_user.role,
+                'family_id': current_user.family_id
+            }
+            
+            # Add family info if applicable
+            if current_user.family_id:
+                try:
+                    family_response = db.table('families').select('*').eq('id', current_user.family_id).single().execute()
+                    if family_response.data:
+                        context_data['family'] = family_response.data
+                except Exception as e:
+                    print(f"Error fetching family data: {str(e)}")
+            
+            # Add context-specific data
+            try:
+                if context == "tasks":
+                    # Get pending tasks
+                    tasks_response = db.table('tasks').select('*').eq('family_id', current_user.family_id).eq('status', 'Pending').order('due_date').execute()
+                    if tasks_response.data:
+                        context_data['tasks'] = tasks_response.data
+                        
+                elif context == "calendar":
+                    # Get upcoming events
+                    today = datetime.now().strftime('%Y-%m-%d')
+                    events_response = db.table('events').select('*').eq('family_id', current_user.family_id).gte('date', today).order('date').limit(10).execute()
+                    if events_response.data:
+                        context_data['events'] = events_response.data
+                        
+                elif context == "finance":
+                    # Get financial data
+                    finance_response = db.table('finances').select('*').eq('family_id', current_user.family_id).execute()
+                    if finance_response.data:
+                        context_data['finances'] = finance_response.data
+                        
+                elif context == "chat":
+                    # Get recent messages
+                    chat_response = db.table('chats').select('*').eq('family_id', current_user.family_id).order('timestamp', desc=True).limit(10).execute()
+                    if chat_response.data:
+                        context_data['messages'] = chat_response.data
+                        
+                elif context == "memory":
+                    # Get recent memories
+                    memory_response = db.table('memories').select('*').eq('family_id', current_user.family_id).order('created_at', desc=True).limit(10).execute()
+                    if memory_response.data:
+                        context_data['memories'] = memory_response.data
+                        
+                elif context == "inventory":
+                    # Get inventory items
+                    inventory_response = db.table('inventory').select('*').eq('family_id', current_user.family_id).execute()
+                    if inventory_response.data:
+                        context_data['inventory'] = inventory_response.data
+                        
+                elif context == "health":
+                    # Get health data
+                    health_response = db.table('health').select('*').eq('user_id', current_user.id).execute()
+                    if health_response.data:
+                        context_data['health'] = health_response.data
+                        
+                elif context == "family":
+                    # Get family members
+                    members_response = db.table('users').select('id,username,role').eq('family_id', current_user.family_id).execute()
+                    if members_response.data:
+                        context_data['members'] = members_response.data
+                        
+                    # Get connected families
+                    connections_response = db.table('family_connections').select('*').or_(
+                        f'family_id1.eq.{current_user.family_id},family_id2.eq.{current_user.family_id}'
+                    ).execute()
+                    if connections_response.data:
+                        context_data['connections'] = connections_response.data
+            except Exception as e:
+                print(f"Error fetching context data: {str(e)}")
+        
+        # Try to use the Grok API if available
+        if grok_api_key and grok_api_url and grok_model:
+            try:
+                headers = {
+                    "Authorization": f"Bearer {grok_api_key}",
+                    "Content-Type": "application/json"
+                }
+                
+                # Prepare the prompt with context data
+                prompt = f"You are SphereBot, a helpful assistant for the FamilySphere family management app. The user has asked: '{query}'\n\n"
+                
+                # Add context data to the prompt
+                if context_data:
+                    prompt += "Here is some relevant context from the app:\n"
+                    for key, value in context_data.items():
+                        prompt += f"{key}: {json.dumps(value)}\n"
+                
+                prompt += "\nPlease provide a helpful, friendly response that addresses the user's query."
+                
+                payload = {
+                    "model": grok_model,
+                    "messages": [
+                        {"role": "system", "content": "You are SphereBot, a helpful assistant for the FamilySphere family management app."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": 0.7,
+                    "max_tokens": 500
+                }
+                
+                response = requests.post(grok_api_url, headers=headers, json=payload, timeout=10)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    ai_response = result.get('choices', [{}])[0].get('message', {}).get('content', '')
+                    if ai_response:
+                        return jsonify({"response": ai_response})
+                else:
+                    print(f"Grok API error: {response.status_code} - {response.text}")
+            except Exception as e:
+                print(f"Error calling Grok API: {str(e)}")
+        
+        # If we get here, either the API call failed or the API keys are not set
+        # Use our context-aware fallback responses
+        query_lower = query.lower()
+        
+        # Special case for asking why tasks are showing
+        if "why" in query_lower and ("task" in query_lower or "telling me" in query_lower):
+            return jsonify({
+                "response": "I'm showing example tasks because I couldn't connect to the database or the AI service is currently unavailable. When fully connected, I'll show your actual tasks."
+            })
+        
+        # Handle different contexts with specific responses
+        if context == "tasks":
+            # Check for specific task-related queries
+            if any(term in query_lower for term in ["view", "show", "list", "what are", "pending"]):
+                # Try to use real tasks from context_data if available
+                if 'tasks' in context_data and context_data['tasks']:
+                    tasks = context_data['tasks']
+                    response_text = "Here are your pending tasks:\n\n"
+                    
+                    for i, task in enumerate(tasks, 1):
+                        due_date = task.get('due_date', 'No due date')
+                        title = task.get('title', 'Untitled task')
+                        
+                        # Format the due date
+                        today = datetime.now().strftime('%Y-%m-%d')
+                        if due_date == today:
+                            due_str = "Due today"
+                        else:
+                            try:
+                                task_date = datetime.strptime(due_date, '%Y-%m-%d').date()
+                                due_str = task_date.strftime('%b %d')
+                            except:
+                                due_str = f"Due {due_date}"
+                        
+                        response_text += f"{i}. {title} ({due_str})\n"
+                    
+                    response_text += "\nWould you like to mark any of these as complete?"
+                    return jsonify({"response": response_text})
+                else:
+                    # Fall back to generic response
+                    return jsonify({
+                        "response": "I couldn't retrieve your tasks at the moment. Please try again later or check the Tasks section of the app."
+                    })
+            elif any(term in query_lower for term in ["create", "add", "new"]):
+                return jsonify({
+                    "response": "To create a new task, please provide the following details:\n- Task title\n- Due date\n- Assigned to (optional)\n- Priority (optional)\n\nYou can create tasks directly in the Tasks section of the app."
+                })
+            elif any(term in query_lower for term in ["assign", "distribute", "give"]):
+                # Try to use real family members if available
+                if 'members' in context_data and context_data['members']:
+                    members = context_data['members']
+                    response_text = "You can assign tasks to the following family members:\n"
+                    
+                    for member in members:
+                        response_text += f"- {member['username']} ({member['role']})\n"
+                    
+                    response_text += "\nWhich task would you like to assign and to whom?"
+                    return jsonify({"response": response_text})
+                else:
+                    return jsonify({
+                        "response": "I couldn't retrieve your family members at the moment. You can assign tasks in the Tasks section of the app."
+                    })
+            elif any(term in query_lower for term in ["complete", "mark", "done", "finish"]):
+                return jsonify({
+                    "response": "Which task would you like to mark as complete? Please specify the task name or number from your pending tasks list."
+                })
+            else:
+                # General task management options
+                return jsonify({
+                    "response": "Here are some task management options:\n- View your pending tasks\n- Create a new task\n- Assign tasks to family members to distribute responsibilities\n- Mark tasks as completed"
+                })
+        elif context == "calendar":
+            if any(term in query_lower for term in ["view", "show", "list", "what", "upcoming", "today"]):
+                # Try to use real events from context_data if available
+                if 'events' in context_data and context_data['events']:
+                    events = context_data['events']
+                    response_text = "Here are your upcoming events:\n\n"
+                    
+                    for i, event in enumerate(events, 1):
+                        title = event.get('title', 'Untitled event')
+                        date = event.get('date', 'No date')
+                        time = event.get('time', 'No time')
+                        
+                        # Format the date
+                        today = datetime.now().strftime('%Y-%m-%d')
+                        tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+                        
+                        if date == today:
+                            date_str = "Today"
+                        elif date == tomorrow:
+                            date_str = "Tomorrow"
+                        else:
+                            try:
+                                event_date = datetime.strptime(date, '%Y-%m-%d').date()
+                                date_str = event_date.strftime('%b %d')
+                            except:
+                                date_str = date
+                        
+                        response_text += f"{i}. {title} ({date_str}, {time})\n"
+                    
+                    return jsonify({"response": response_text})
+                else:
+                    # Fall back to generic response
+                    return jsonify({
+                        "response": "I couldn't retrieve your events at the moment. Please try again later or check the Calendar section of the app."
+                    })
+            else:
+                return jsonify({
+                    "response": "I can help you manage your family calendar. You can:\n- View upcoming events\n- Add new events\n- Set reminders\n- Share events with family members"
+                })
+        elif context == "finance":
+            if any(term in query_lower for term in ["view", "show", "summary", "overview", "budget", "current"]):
+                return jsonify({
+                    "response": "Here's your financial summary (sample data):\n\nBudget: $2,500.00\nSpent this month: $1,200.00\nRemaining: $1,300.00\n\nRecent expenses:\n1. Groceries - $120.00 (Yesterday)\n2. Utilities - $180.00 (Feb 28)\n3. Dining out - $65.00 (Feb 27)\n\nNote: This is example financial data for demonstration purposes only."
+                })
+            elif any(term in query_lower for term in ["add", "new", "record", "expense", "spending"]):
+                return jsonify({
+                    "response": "To add a new expense, please provide:\n- Amount\n- Category (e.g., Groceries, Utilities, Entertainment)\n- Date (defaults to today)\n- Description (optional)\n\nYou can add expenses in the Finance section of the app."
+                })
+            elif any(term in query_lower for term in ["set", "create", "update", "change", "modify", "budget"]):
+                return jsonify({
+                    "response": "To set or update your budget, please provide:\n- Budget amount\n- Time period (Monthly, Weekly, etc.)\n- Start date (optional)\n- Categories with allocations (optional)\n\nYou can manage your budget in the Finance section of the app."
+                })
+            elif any(term in query_lower for term in ["saving", "goal", "target", "plan"]):
+                return jsonify({
+                    "response": "Your current savings goals (sample data):\n\n1. Vacation - $1,500/$3,000 (50% complete)\n2. New Appliances - $800/$1,200 (67% complete)\n3. Emergency Fund - $5,000/$10,000 (50% complete)\n\nYou can add or update savings goals in the Finance section of the app."
+                })
+            elif any(term in query_lower for term in ["report", "analysis", "trend", "spending", "history"]):
+                return jsonify({
+                    "response": "Spending analysis (sample data):\n\nTop categories this month:\n1. Groceries - $450 (36% of budget)\n2. Utilities - $320 (80% of budget)\n3. Entertainment - $200 (67% of budget)\n\nCompared to last month:\n- Groceries: 5% increase\n- Utilities: 2% decrease\n- Entertainment: 15% increase\n\nNote: This is example data for demonstration purposes only."
+                })
+            else:
+                return jsonify({
+                    "response": "I can help you manage your family finances. You can:\n- View your current budget and spending\n- Add new expenses\n- Set or update your budget\n- Track savings goals\n- View spending reports and trends"
+                })
+        elif context == "chat":
+            if any(term in query_lower for term in ["view", "show", "list", "messages", "recent"]):
+                return jsonify({
+                    "response": "Here are your recent messages (sample data):\n\nSarah (10:30 AM): Don't forget to pick up milk on your way home\nKids (11:45 AM): Can we have pizza for dinner?\nYou (12:15 PM): Sure, I'll order it around 5\n\nNote: These are example messages for demonstration purposes only."
+                })
+            elif any(term in query_lower for term in ["send", "message", "text"]):
+                return jsonify({
+                    "response": "Who would you like to send a message to? Available family members (sample):\n- Sarah\n- Kids\n- Mom\n- Dad\n\nNote: In test mode, messages won't actually be sent."
+                })
+            else:
+                return jsonify({
+                    "response": "Here are some chat options:\n- View recent messages\n- Send a new message to family members\n- Create a group chat\n- Share photos or files\n\nNote: I'm currently in test mode and not connected to your actual database."
+                })
+        elif context == "memory":
+            if any(term in query_lower for term in ["view", "show", "list", "photos", "pictures", "albums"]):
+                return jsonify({
+                    "response": "Here are your recent memories (sample data):\n\n1. Family Vacation (15 photos, added Feb 20)\n2. Birthday Party (8 photos, added Feb 15)\n3. Weekend BBQ (5 photos, added Feb 10)\n\nNote: These are example memories for demonstration purposes only."
+                })
+            elif any(term in query_lower for term in ["add", "new", "upload", "create"]):
+                return jsonify({
+                    "response": "To add new memories, please provide:\n- Album name\n- Photos to upload\n- Description (optional)\n- Tags (optional)\n\nNote: In test mode, memories won't actually be added to the database."
+                })
+            else:
+                return jsonify({
+                    "response": "Here are some memory management options:\n- View your photo albums\n- Upload new photos\n- Create themed collections\n- Share memories with family members\n\nNote: I'm currently in test mode and not connected to your actual database."
+                })
+        elif context == "inventory":
+            if any(term in query_lower for term in ["view", "show", "list", "items", "stock"]):
+                return jsonify({
+                    "response": "Here's your current inventory (sample data):\n\nGroceries:\n- Milk (1 gallon, expires in 5 days)\n- Bread (1 loaf, expires in 3 days)\n- Eggs (6 remaining)\n\nHousehold:\n- Paper towels (2 rolls)\n- Laundry detergent (running low)\n\nNote: This is example inventory data for demonstration purposes only."
+                })
+            elif any(term in query_lower for term in ["add", "new", "purchase", "bought"]):
+                return jsonify({
+                    "response": "To add items to your inventory, please provide:\n- Item name\n- Quantity\n- Category (e.g., Groceries, Household)\n- Expiration date (optional)\n\nNote: In test mode, items won't actually be added to the database."
+                })
+            elif any(term in query_lower for term in ["remove", "used", "consumed", "finished"]):
+                return jsonify({
+                    "response": "Which item would you like to remove from inventory? Please specify the item name and quantity.\n\nNote: In test mode, items won't actually be removed from the database."
+                })
+            else:
+                return jsonify({
+                    "response": "Here are some inventory management options:\n- View your current inventory\n- Add new items\n- Remove used items\n- Set up automatic shopping lists\n- Get low stock alerts\n\nNote: I'm currently in test mode and not connected to your actual database."
+                })
+        elif context == "health":
+            if any(term in query_lower for term in ["view", "show", "list", "medications", "prescriptions"]):
+                return jsonify({
+                    "response": "Here are your medications (sample data):\n\n1. Vitamin D (1 pill daily, morning)\n2. Allergy medication (1 pill daily, evening)\n\nUpcoming appointments:\n- Dr. Smith, March 10, 2:00 PM\n\nNote: This is example health data for demonstration purposes only."
+                })
+            elif any(term in query_lower for term in ["add", "new", "medication", "prescription"]):
+                return jsonify({
+                    "response": "To add a new medication reminder, please provide:\n- Medication name\n- Dosage\n- Frequency\n- Time of day\n- Start date\n- End date (optional)\n\nNote: In test mode, medications won't actually be added to the database."
+                })
+            elif any(term in query_lower for term in ["appointment", "schedule", "doctor"]):
+                return jsonify({
+                    "response": "To add a new health appointment, please provide:\n- Doctor/Provider name\n- Date\n- Time\n- Purpose\n- Location\n\nNote: In test mode, appointments won't actually be added to the database."
+                })
+            else:
+                return jsonify({
+                    "response": "Here are some health management options:\n- View your medications\n- Add medication reminders\n- Schedule doctor appointments\n- Track health metrics\n- Set up emergency contacts\n\nNote: I'm currently in test mode and not connected to your actual database."
+                })
+        elif context == "emergency":
+            return jsonify({
+                "response": "Emergency features:\n\n- Set up emergency contacts\n- Share your location with family members\n- Access quick dial for emergency services\n- Store important documents securely\n\nNote: These features are for demonstration purposes only in test mode."
+            })
+        elif context == "family":
+            if any(term in query_lower for term in ["view", "show", "list", "members"]):
+                return jsonify({
+                    "response": "Family members (sample data):\n\n- JP (Admin)\n- Sarah (Member)\n- Kids (Kid)\n\nConnected families:\n- Grandparents\n- Cousins\n\nNote: This is example family data for demonstration purposes only."
+                })
+            elif any(term in query_lower for term in ["add", "invite", "new"]):
+                return jsonify({
+                    "response": "To invite a new family member, please provide:\n- Email address\n- Name\n- Role (Admin, Member, Kid)\n\nAlternatively, you can share your family code: ABC123\n\nNote: In test mode, invitations won't actually be sent."
+                })
+            else:
+                return jsonify({
+                    "response": "Here are some family management options:\n- View family members\n- Invite new members\n- Connect with extended family\n- Manage member roles and permissions\n\nNote: I'm currently in test mode and not connected to your actual database."
+                })
+        else:
+            # General help
+            return jsonify({
+                "response": "I'm SphereBot, your family assistant! I can help with:\n\n- Tasks and chores\n- Calendar and events\n- Family finances\n- Family chat\n- Photo memories\n- Household inventory\n- Health tracking\n- Emergency features\n- Family member management\n\nWhat would you like help with today?\n\nNote: I'm currently in test mode and not connected to your actual database."
+            })
+            
+    except Exception as e:
+        print(f"Exception in spherebot_query: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
-# SphereBot API endpoint
 @app.route('/api/spherebot/suggestion', methods=['POST'])
 @login_required
 def spherebot_api():
@@ -1821,3 +3131,1140 @@ def page_not_found(e):
 @app.errorhandler(500)
 def internal_server_error(e):
     return render_template('500.html'), 500
+
+@app.route('/print_calendar')
+@login_required
+def print_calendar():
+    """Generate a printable version of the calendar."""
+    from database import db
+    import datetime
+    
+    # Get filter parameters
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    category = request.args.get('category')
+    member_id = request.args.get('member_id')
+    view_type = request.args.get('view', 'month')
+    include_shared = request.args.get('include_shared', 'true') == 'true'
+    
+    # Get all events for the user's family
+    query = db.table('events').select('*').eq('family_id', current_user.family_id)
+    
+    # Apply date filters if provided
+    if start_date:
+        query = query.gte('date', start_date)
+    if end_date:
+        query = query.lte('date', end_date)
+        
+    # Apply category filter if provided
+    if category and category != 'all':
+        query = query.eq('category', category)
+        
+    # Apply member filter if provided
+    if member_id and member_id != 'all':
+        query = query.eq('created_by', member_id)
+        
+    events_response = query.execute()
+    events = events_response.data
+    
+    # Also get shared events that this family can see
+    shared_events = []
+    if include_shared:
+        shared_query = db.table('events').select('*').neq('family_id', current_user.family_id)
+        
+        # Apply date filters if provided
+        if start_date:
+            shared_query = shared_query.gte('date', start_date)
+        if end_date:
+            shared_query = shared_query.lte('date', end_date)
+            
+        # Apply category filter if provided
+        if category and category != 'all':
+            shared_query = shared_query.eq('category', category)
+            
+        shared_response = shared_query.execute()
+        
+        # Filter shared events to only include those shared with this family
+        for event_data in shared_response.data:
+            shared_with = event_data.get('shared_with', '')
+            if shared_with and current_user.family_id in shared_with.split(','):
+                events.append(event_data)
+    
+    # Format events for the template
+    formatted_events = []
+    
+    for event in events:
+        formatted_event = format_event_for_calendar(event, is_family_event=True)
+        formatted_events.append(formatted_event)
+    
+    for event in shared_events:
+        formatted_event = format_event_for_calendar(event, is_family_event=False)
+        formatted_events.append(formatted_event)
+    
+    # Get family members for display
+    family_members_response = db.table('users').select('id, username').eq('family_id', current_user.family_id).execute()
+    family_members = family_members_response.data
+    
+    # Create a member lookup dictionary
+    member_lookup = {member['id']: member['username'] for member in family_members}
+    
+    # Sort events by date and time
+    formatted_events.sort(key=lambda x: (x['start'], x.get('end', '')))
+    
+    # Group events by date for month view
+    events_by_date = {}
+    for event in formatted_events:
+        date_str = event['start'].split('T')[0] if 'T' in event['start'] else event['start']
+        if date_str not in events_by_date:
+            events_by_date[date_str] = []
+        events_by_date[date_str].append(event)
+    
+    # Set title based on date range
+    if start_date and end_date:
+        title = f"Calendar: {start_date} to {end_date}"
+    elif start_date:
+        title = f"Calendar: From {start_date}"
+    elif end_date:
+        title = f"Calendar: Until {end_date}"
+    else:
+        title = "Family Calendar"
+    
+    # Add category filter to title if applicable
+    if category and category != 'all':
+        title += f" - {category} Events"
+    
+    # Add member filter to title if applicable
+    if member_id and member_id != 'all' and member_id in member_lookup:
+        title += f" - {member_lookup[member_id]}'s Events"
+    
+    return render_template('print_calendar.html',
+                          events=formatted_events,
+                          events_by_date=events_by_date,
+                          view_type=view_type,
+                          title=title,
+                          member_lookup=member_lookup,
+                          page_title="Print Calendar")
+
+# Calendar template routes
+@app.route('/calendar/templates')
+@login_required
+def calendar_templates():
+    """Display the calendar templates management page."""
+    family_id = current_user.family_id
+    
+    # Get all templates for this family
+    templates = db.table('calendar_templates').select('*').eq('family_id', family_id).execute()
+    
+    return render_template('calendar_templates.html', templates=templates.data)
+
+@app.route('/api/calendar_templates')
+@login_required
+def get_calendar_templates():
+    """API endpoint to get calendar templates for the current family."""
+    family_id = current_user.family_id
+    
+    # Get all templates for this family
+    templates = db.table('calendar_templates').select('*').eq('family_id', family_id).execute()
+    
+    return jsonify({'templates': templates.data})
+
+@app.route('/save_calendar_template', methods=['POST'])
+@login_required
+def save_calendar_template():
+    """Save a new or update an existing calendar template."""
+    family_id = current_user.family_id
+    
+    template_id = request.form.get('template_id')
+    template_name = request.form.get('template_name')
+    event_title = request.form.get('event_title')
+    event_category = request.form.get('event_category')
+    event_location = request.form.get('event_location')
+    event_description = request.form.get('event_description')
+    all_day = True if request.form.get('all_day') else False
+    event_time = request.form.get('event_time')
+    event_end_time = request.form.get('event_end_time')
+    recurrence_pattern = request.form.get('recurrence_pattern')
+    
+    # Validate required fields
+    if not template_name or not event_title:
+        flash('Template name and event title are required.', 'danger')
+        return redirect(url_for('calendar_templates'))
+    
+    template_data = {
+        'template_name': template_name,
+        'event_title': event_title,
+        'event_category': event_category,
+        'event_location': event_location,
+        'event_description': event_description,
+        'all_day': all_day,
+        'event_time': event_time,
+        'event_end_time': event_end_time,
+        'recurrence_pattern': recurrence_pattern,
+        'family_id': family_id,
+        'created_by': current_user.id,
+        'updated_at': datetime.now().isoformat()
+    }
+    
+    try:
+        if template_id:
+            # Update existing template
+            result = db.table('calendar_templates').update(template_data).eq('id', template_id).eq('family_id', family_id).execute()
+            flash('Template updated successfully', 'success')
+        else:
+            # Create new template
+            template_data['created_at'] = datetime.now().isoformat()
+            result = db.table('calendar_templates').insert(template_data).execute()
+            flash('Template created successfully', 'success')
+            
+        return redirect(url_for('calendar_templates'))
+    except Exception as e:
+        app.logger.error(f"Error saving template: {str(e)}")
+        flash(f'Error saving template: {str(e)}', 'danger')
+        return redirect(url_for('calendar_templates'))
+
+@app.route('/delete_calendar_template', methods=['POST'])
+@login_required
+def delete_calendar_template():
+    """Delete a calendar template."""
+    family_id = current_user.family_id
+    template_id = request.form.get('template_id', '')
+    
+    if not template_id:
+        flash('Template ID is required.', 'danger')
+        return redirect(url_for('calendar_templates'))
+    
+    try:
+        # Delete the template
+        result = db.table('calendar_templates').delete().eq('id', template_id).eq('family_id', family_id).execute()
+        flash('Template deleted successfully', 'success')
+    except Exception as e:
+        app.logger.error(f"Error deleting template: {str(e)}")
+        flash(f'Error deleting template: {str(e)}', 'danger')
+    
+    return redirect(url_for('calendar_templates'))
+
+@app.route('/use_calendar_template/<template_id>')
+@login_required
+def use_calendar_template(template_id):
+    """Use a template to create a new event."""
+    family_id = current_user.family_id
+    
+    # Get the template
+    template_result = db.table('calendar_templates').select('*').eq('id', template_id).eq('family_id', family_id).execute()
+    
+    if not template_result.data:
+        flash('Template not found.', 'danger')
+        return redirect(url_for('calendar'))
+    
+    template = template_result.data[0]
+    
+    # Redirect to add event page with template data
+    return redirect(url_for('add_event', 
+                           template_id=template_id,
+                           title=template['event_title'],
+                           category=template['event_category'],
+                           location=template['event_location'],
+                           description=template['event_description'],
+                           all_day='true' if template['all_day'] else '',
+                           start_time=template['event_time'],
+                           end_time=template['event_end_time'],
+                           recurrence=template['recurrence_pattern']))
+
+@app.route('/family/connections')
+@login_required
+def family_connections():
+    return render_template('family_connections.html')
+
+# Family Connection Routes
+@app.route('/api/family_connections/connected')
+@login_required
+def get_connected_families():
+    """Get list of families connected with the current family."""
+    try:
+        # Get current family's connections
+        response = supabase.table('family_connections').select(
+            'id, connected_family:connected_family_id(id, name), connected_date, shared_features'
+        ).eq('family_id', current_user.family_id).execute()
+
+        families = []
+        for conn in response.data:
+            families.append({
+                'id': conn['connected_family']['id'],
+                'name': conn['connected_family']['name'],
+                'connected_date': conn['connected_date'],
+                'shared_features': conn['shared_features'] or []
+            })
+
+        return jsonify({'success': True, 'families': families})
+    except Exception as e:
+        app.logger.error(f"Error getting connected families: {str(e)}")
+        return jsonify({'success': False, 'message': 'Failed to load connected families'}), 500
+
+@app.route('/api/family_connections/requests')
+@login_required
+def get_connection_requests():
+    """Get incoming and outgoing connection requests."""
+    try:
+        # Get incoming requests
+        incoming = supabase.table('family_connection_requests').select(
+            'id, family:requesting_family_id(id, name), request_date'
+        ).eq('requested_family_id', current_user.family_id).eq('status', 'pending').execute()
+
+        # Get outgoing requests
+        outgoing = supabase.table('family_connection_requests').select(
+            'id, family:requested_family_id(id, name), request_date'
+        ).eq('requesting_family_id', current_user.family_id).eq('status', 'pending').execute()
+
+        return jsonify({
+            'success': True,
+            'incoming': [{
+                'id': req['id'],
+                'family_name': req['family']['name'],
+                'request_date': req['request_date']
+            } for req in incoming.data],
+            'outgoing': [{
+                'id': req['id'],
+                'family_name': req['family']['name'],
+                'request_date': req['request_date']
+            } for req in outgoing.data]
+        })
+    except Exception as e:
+        app.logger.error(f"Error getting connection requests: {str(e)}")
+        return jsonify({'success': False, 'message': 'Failed to load connection requests'}), 500
+
+@app.route('/api/family_connections/request', methods=['POST'])
+@login_required
+def send_connection_request():
+    """Send a connection request to another family."""
+    try:
+        data = request.get_json()
+        family_code = data.get('family_code')
+        
+        if not family_code:
+            return jsonify({'success': False, 'message': 'Family code is required'})
+        
+        # Find the family by code
+        family = supabase.table('families').select('id').eq('code', family_code).single().execute()
+        if not family.data:
+            return jsonify({'success': False, 'message': 'Family not found'})
+        
+        requested_family_id = family.data['id']
+        
+        # Check if already connected
+        existing_connection = supabase.table('family_connections').select('id').or_(
+            f'and(family_id.eq.{current_user.family_id},connected_family_id.eq.{requested_family_id})',
+            f'and(family_id.eq.{requested_family_id},connected_family_id.eq.{current_user.family_id})'
+        ).execute()
+        
+        if existing_connection.data:
+            return jsonify({'success': False, 'message': 'Already connected with this family'})
+        
+        # Check for existing pending request
+        existing_request = supabase.table('family_connection_requests').select('id').or_(
+            f'and(requesting_family_id.eq.{current_user.family_id},requested_family_id.eq.{requested_family_id})',
+            f'and(requesting_family_id.eq.{requested_family_id},requested_family_id.eq.{current_user.family_id})'
+        ).eq('status', 'pending').execute()
+
+        if existing_request.data:
+            return jsonify({'success': False, 'message': 'A connection request already exists'})
+        
+        # Create the request
+        supabase.table('family_connection_requests').insert({
+            'requesting_family_id': current_user.family_id,
+            'requested_family_id': requested_family_id,
+            'status': 'pending',
+            'request_date': datetime.utcnow().isoformat()
+        }).execute()
+
+        return jsonify({'success': True, 'message': 'Connection request sent successfully'})
+    except Exception as e:
+        app.logger.error(f"Error sending connection request: {str(e)}")
+        return jsonify({'success': False, 'message': 'Failed to send connection request'}), 500
+
+@app.route('/api/family_connections/accept/<request_id>', methods=['POST'])
+@login_required
+def accept_connection_request(request_id):
+    """Accept a connection request."""
+    try:
+        # Get the request
+        request_data = supabase.table('family_connection_requests').select(
+            'requesting_family_id, requested_family_id, status'
+        ).eq('id', request_id).single().execute()
+
+        if not request_data.data:
+            return jsonify({'success': False, 'message': 'Request not found'})
+        
+        if request_data.data['status'] != 'pending':
+            return jsonify({'success': False, 'message': 'Request is no longer pending'})
+        
+        if request_data.data['requested_family_id'] != current_user.family_id:
+            return jsonify({'success': False, 'message': 'Not authorized to accept this request'})
+        
+        # Create connection
+        supabase.table('family_connections').insert([
+            {
+                'family_id': request_data.data['requesting_family_id'],
+                'connected_family_id': request_data.data['requested_family_id'],
+                'connected_date': datetime.utcnow().isoformat(),
+                'shared_features': []
+            }
+        ]).execute()
+
+        # Update request status
+        supabase.table('family_connection_requests').update({
+            'status': 'accepted',
+            'response_date': datetime.utcnow().isoformat()
+        }).eq('id', request_id).execute()
+
+        return jsonify({'success': True, 'message': 'Connection request accepted'})
+    except Exception as e:
+        app.logger.error(f"Error accepting connection request: {str(e)}")
+        return jsonify({'success': False, 'message': 'Failed to accept connection request'}), 500
+
+@app.route('/api/family_connections/reject/<request_id>', methods=['POST'])
+@login_required
+def reject_connection_request(request_id):
+    """Reject a connection request."""
+    try:
+        # Get the request
+        request_data = supabase.table('family_connection_requests').select(
+            'requested_family_id, status'
+        ).eq('id', request_id).single().execute()
+
+        if not request_data.data:
+            return jsonify({'success': False, 'message': 'Request not found'})
+        
+        if request_data.data['status'] != 'pending':
+            return jsonify({'success': False, 'message': 'Request is no longer pending'})
+        
+        if request_data.data['requested_family_id'] != current_user.family_id:
+            return jsonify({'success': False, 'message': 'Not authorized to reject this request'})
+        
+        # Update request status
+        supabase.table('family_connection_requests').update({
+            'status': 'rejected',
+            'response_date': datetime.utcnow().isoformat()
+        }).eq('id', request_id).execute()
+
+        return jsonify({'success': True, 'message': 'Connection request rejected'})
+    except Exception as e:
+        app.logger.error(f"Error rejecting connection request: {str(e)}")
+        return jsonify({'success': False, 'message': 'Failed to reject connection request'}), 500
+
+@app.route('/api/family_connections/cancel/<request_id>', methods=['POST'])
+@login_required
+def cancel_connection_request(request_id):
+    """Cancel an outgoing connection request."""
+    try:
+        # Get the request
+        request_data = supabase.table('family_connection_requests').select(
+            'requesting_family_id, status'
+        ).eq('id', request_id).single().execute()
+
+        if not request_data.data:
+            return jsonify({'success': False, 'message': 'Request not found'})
+        
+        if request_data.data['status'] != 'pending':
+            return jsonify({'success': False, 'message': 'Request is no longer pending'})
+        
+        if request_data.data['requesting_family_id'] != current_user.family_id:
+            return jsonify({'success': False, 'message': 'Not authorized to cancel this request'})
+        
+        # Update request status
+        supabase.table('family_connection_requests').update({
+            'status': 'cancelled',
+            'response_date': datetime.utcnow().isoformat()
+        }).eq('id', request_id).execute()
+
+        return jsonify({'success': True, 'message': 'Connection request cancelled'})
+    except Exception as e:
+        app.logger.error(f"Error cancelling connection request: {str(e)}")
+        return jsonify({'success': False, 'message': 'Failed to cancel connection request'}), 500
+
+@app.route('/api/family_connections/sharing/<family_id>')
+@login_required
+def get_sharing_settings(family_id):
+    """Get sharing settings for a connected family."""
+    try:
+        # Get the connection
+        connection = supabase.table('family_connections').select(
+            'shared_features'
+        ).or_(
+            f'family_id.eq.{current_user.family_id},connected_family_id.eq.{family_id}',
+            f'family_id.eq.{family_id},connected_family_id.eq.{current_user.family_id}'
+        ).single().execute()
+
+        if not connection.data:
+            return jsonify({'success': False, 'message': 'Connection not found'})
+        
+        shared_features = connection.data.get('shared_features', [])
+        settings = {
+            'calendar': 'calendar' in shared_features,
+            'tasks': 'tasks' in shared_features,
+            'photos': 'photos' in shared_features,
+            'shopping': 'shopping' in shared_features,
+            'emergency': 'emergency' in shared_features,
+            'documents': 'documents' in shared_features
+        }
+
+        return jsonify({'success': True, 'settings': settings})
+    except Exception as e:
+        app.logger.error(f"Error getting sharing settings: {str(e)}")
+        return jsonify({'success': False, 'message': 'Failed to load sharing settings'}), 500
+
+@app.route('/api/family_connections/sharing/<family_id>', methods=['POST'])
+@login_required
+def update_sharing_settings(family_id):
+    """Update sharing settings for a connected family."""
+    try:
+        data = request.get_json()
+        
+        # Get the connection
+        connection = supabase.table('family_connections').select('id').or_(
+            f'family_id.eq.{current_user.family_id},connected_family_id.eq.{family_id}',
+            f'family_id.eq.{family_id},connected_family_id.eq.{current_user.family_id}'
+        ).single().execute()
+
+        if not connection.data:
+            return jsonify({'success': False, 'message': 'Connection not found'})
+        
+        # Update shared features
+        shared_features = []
+        for feature, enabled in data.items():
+            if enabled:
+                shared_features.append(feature)
+
+        supabase.table('family_connections').update({
+            'shared_features': shared_features
+        }).eq('id', connection.data['id']).execute()
+
+        return jsonify({'success': True, 'message': 'Sharing settings updated successfully'})
+    except Exception as e:
+        app.logger.error(f"Error updating sharing settings: {str(e)}")
+        return jsonify({'success': False, 'message': 'Failed to update sharing settings'}), 500
+
+@app.route('/api/family_connections/disconnect/<family_id>', methods=['POST'])
+@login_required
+def disconnect_family(family_id):
+    """Disconnect from a family."""
+    try:
+        # Delete the connection
+        supabase.table('family_connections').delete().or_(
+            f'family_id.eq.{current_user.family_id},connected_family_id.eq.{family_id}',
+            f'family_id.eq.{family_id},connected_family_id.eq.{current_user.family_id}'
+        ).execute()
+
+        # Delete all shared items
+        tables = ['shared_events', 'shared_tasks', 'shared_photos', 'shared_shopping_lists', 'shared_emergency_contacts']
+        for table in tables:
+            supabase.table(table).delete().or_(
+                f'family_id.eq.{current_user.family_id},shared_with.cs.{{{family_id}}}',
+                f'family_id.eq.{family_id},shared_with.cs.{{{current_user.family_id}}}'
+            ).execute()
+
+        return jsonify({'success': True, 'message': 'Family disconnected successfully'})
+    except Exception as e:
+        app.logger.error(f"Error disconnecting family: {str(e)}")
+        return jsonify({'success': False, 'message': 'Failed to disconnect family'}), 500
+
+@app.route('/api/family_connections/shared/events')
+@login_required
+def get_shared_events():
+    """Get events shared with or by connected families."""
+    try:
+        # Get connected family IDs
+        connections = supabase.table('family_connections').select(
+            'id, connected_family_id, shared_features'
+        ).or_(
+            f'family_id.eq.{current_user.family_id}',
+            f'connected_family_id.eq.{current_user.family_id}'
+        ).execute()
+
+        shared_events = []
+        for conn in connections.data:
+            if 'calendar' not in conn.get('shared_features', []):
+                continue
+
+            other_family_id = conn['connected_family_id'] if conn['family_id'] == current_user.family_id else conn['family_id']
+
+            # Get events shared by the other family
+            events = supabase.table('events').select(
+                'id, title, start_date, end_date, description, family_id'
+            ).eq('family_id', other_family_id).contains('shared_with', [str(current_user.family_id)]).execute()
+
+            shared_events.extend(events.data or [])
+
+        return jsonify({'success': True, 'events': shared_events})
+    except Exception as e:
+        app.logger.error(f"Error getting shared events: {str(e)}")
+        return jsonify({'success': False, 'message': 'Failed to load shared events'}), 500
+
+@app.route('/api/family_connections/shared/tasks')
+@login_required
+def get_shared_tasks():
+    """Get tasks shared with or by connected families."""
+    try:
+        # Get connected family IDs
+        connections = supabase.table('family_connections').select(
+            'id, connected_family_id, shared_features'
+        ).or_(
+            f'family_id.eq.{current_user.family_id}',
+            f'connected_family_id.eq.{current_user.family_id}'
+        ).execute()
+
+        shared_tasks = []
+        for conn in connections.data:
+            if 'tasks' not in conn.get('shared_features', []):
+                continue
+
+            other_family_id = conn['connected_family_id'] if conn['family_id'] == current_user.family_id else conn['family_id']
+
+            # Get tasks shared by the other family
+            tasks = supabase.table('tasks').select(
+                'id, title, description, due_date, status, family_id'
+            ).eq('family_id', other_family_id).contains('shared_with', [str(current_user.family_id)]).execute()
+
+            shared_tasks.extend(tasks.data or [])
+
+        return jsonify({'success': True, 'tasks': shared_tasks})
+    except Exception as e:
+        app.logger.error(f"Error getting shared tasks: {str(e)}")
+        return jsonify({'success': False, 'message': 'Failed to load shared tasks'}), 500
+
+@app.route('/api/family_connections/shared/photos')
+@login_required
+def get_shared_photos():
+    """Get photos shared with or by connected families."""
+    try:
+        # Get connected family IDs
+        connections = supabase.table('family_connections').select(
+            'id, connected_family_id, shared_features'
+        ).or_(
+            f'family_id.eq.{current_user.family_id}',
+            f'connected_family_id.eq.{current_user.family_id}'
+        ).execute()
+
+        shared_photos = []
+        for conn in connections.data:
+            if 'photos' not in conn.get('shared_features', []):
+                continue
+
+            other_family_id = conn['connected_family_id'] if conn['family_id'] == current_user.family_id else conn['family_id']
+
+            # Get photos shared by the other family
+            photos = supabase.table('photos').select(
+                'id, title, description, url, taken_date, family_id'
+            ).eq('family_id', other_family_id).contains('shared_with', [str(current_user.family_id)]).execute()
+
+            shared_photos.extend(photos.data or [])
+
+        return jsonify({'success': True, 'photos': shared_photos})
+    except Exception as e:
+        app.logger.error(f"Error getting shared photos: {str(e)}")
+        return jsonify({'success': False, 'message': 'Failed to load shared photos'}), 500
+
+@app.route('/api/family_connections/shared/shopping')
+@login_required
+def get_shared_shopping_lists():
+    """Get shopping lists shared with or by connected families."""
+    try:
+        # Get connected family IDs
+        connections = supabase.table('family_connections').select(
+            'id, connected_family_id, shared_features'
+        ).or_(
+            f'family_id.eq.{current_user.family_id}',
+            f'connected_family_id.eq.{current_user.family_id}'
+        ).execute()
+
+        shared_lists = []
+        for conn in connections.data:
+            if 'shopping' not in conn.get('shared_features', []):
+                continue
+
+            other_family_id = conn['connected_family_id'] if conn['family_id'] == current_user.family_id else conn['family_id']
+
+            # Get shopping lists shared by the other family
+            lists = supabase.table('shopping_lists').select(
+                'id, name, items, created_date, family_id'
+            ).eq('family_id', other_family_id).contains('shared_with', [str(current_user.family_id)]).execute()
+
+            shared_lists.extend(lists.data or [])
+
+        return jsonify({'success': True, 'lists': shared_lists})
+    except Exception as e:
+        app.logger.error(f"Error getting shared shopping lists: {str(e)}")
+        return jsonify({'success': False, 'message': 'Failed to load shared shopping lists'}), 500
+
+@app.route('/api/family_connections/shared/emergency')
+@login_required
+def get_shared_emergency_contacts():
+    """Get emergency contacts shared with or by connected families."""
+    try:
+        # Get connected family IDs
+        connections = supabase.table('family_connections').select(
+            'id, connected_family_id, shared_features'
+        ).or_(
+            f'family_id.eq.{current_user.family_id}',
+            f'connected_family_id.eq.{current_user.family_id}'
+        ).execute()
+
+        shared_contacts = []
+        for conn in connections.data:
+            if 'emergency' not in conn.get('shared_features', []):
+                continue
+
+            other_family_id = conn['connected_family_id'] if conn['family_id'] == current_user.family_id else conn['family_id']
+
+            # Get emergency contacts shared by the other family
+            contacts = supabase.table('emergency_contacts').select(
+                'id, name, relationship, phone, email, address, notes, family_id'
+            ).eq('family_id', other_family_id).contains('shared_with', [str(current_user.family_id)]).execute()
+
+            shared_contacts.extend(contacts.data or [])
+
+        return jsonify({'success': True, 'contacts': shared_contacts})
+    except Exception as e:
+        app.logger.error(f"Error getting shared emergency contacts: {str(e)}")
+        return jsonify({'success': False, 'message': 'Failed to load shared emergency contacts'}), 500
+
+@app.route('/api/family_connections/share/<item_type>/<item_id>', methods=['POST'])
+@login_required
+def share_item(item_type, item_id):
+    """Share an item with connected families."""
+    try:
+        data = request.get_json()
+        family_ids = data.get('family_ids', [])
+        
+        if not family_ids:
+            return jsonify({'success': False, 'message': 'No families selected to share with'}), 400
+
+        # Verify all families are connected and sharing is enabled
+        for family_id in family_ids:
+            connection = supabase.table('family_connections').select('shared_features').or_(
+                f'family_id.eq.{current_user.family_id},connected_family_id.eq.{family_id}',
+                f'family_id.eq.{family_id},connected_family_id.eq.{current_user.family_id}'
+            ).single().execute()
+
+            if not connection.data:
+                return jsonify({'success': False, 'message': f'Family {family_id} is not connected'}), 400
+
+            feature_map = {
+                'event': 'calendar',
+                'task': 'tasks',
+                'photo': 'photos',
+                'shopping_list': 'shopping',
+                'emergency_contact': 'emergency'
+            }
+            required_feature = feature_map.get(item_type)
+            
+            if required_feature and required_feature not in connection.data.get('shared_features', []):
+                return jsonify({'success': False, 'message': f'Sharing {item_type}s is not enabled for family {family_id}'}), 400
+
+        # Update the item's shared_with field
+        table_map = {
+            'event': 'events',
+            'task': 'tasks',
+            'photo': 'photos',
+            'shopping_list': 'shopping_lists',
+            'emergency_contact': 'emergency_contacts'
+        }
+        
+        table_name = table_map.get(item_type)
+        if not table_name:
+            return jsonify({'success': False, 'message': 'Invalid item type'}), 400
+
+        # Get current item to verify ownership
+        item = supabase.table(table_name).select('family_id, shared_with').eq('id', item_id).single().execute()
+        
+        if not item.data or item.data['family_id'] != current_user.family_id:
+            return jsonify({'success': False, 'message': 'Item not found or not authorized'}), 404
+
+        # Update shared_with field
+        current_shared = item.data.get('shared_with', [])
+        new_shared = list(set(current_shared + family_ids))  # Remove duplicates
+        
+        supabase.table(table_name).update({
+            'shared_with': new_shared
+        }).eq('id', item_id).execute()
+
+        return jsonify({'success': True, 'message': f'{item_type.title()} shared successfully'})
+    except Exception as e:
+        app.logger.error(f"Error sharing {item_type}: {str(e)}")
+        return jsonify({'success': False, 'message': f'Failed to share {item_type}'}), 500
+
+@app.route('/api/family_connections/unshare/<item_type>/<item_id>', methods=['POST'])
+@login_required
+def unshare_item(item_type, item_id):
+    """Stop sharing an item with specific families."""
+    try:
+        data = request.get_json()
+        family_ids = data.get('family_ids', [])
+        
+        if not family_ids:
+            return jsonify({'success': False, 'message': 'No families selected to unshare with'}), 400
+
+        table_map = {
+            'event': 'events',
+            'task': 'tasks',
+            'photo': 'photos',
+            'shopping_list': 'shopping_lists',
+            'emergency_contact': 'emergency_contacts'
+        }
+        
+        table_name = table_map.get(item_type)
+        if not table_name:
+            return jsonify({'success': False, 'message': 'Invalid item type'}), 400
+
+        # Get current item to verify ownership
+        item = supabase.table(table_name).select('family_id, shared_with').eq('id', item_id).single().execute()
+        
+        if not item.data or item.data['family_id'] != current_user.family_id:
+            return jsonify({'success': False, 'message': 'Item not found or not authorized'}), 404
+
+        # Update shared_with field
+        current_shared = item.data.get('shared_with', [])
+        new_shared = [fid for fid in current_shared if fid not in family_ids]
+        
+        supabase.table(table_name).update({
+            'shared_with': new_shared
+        }).eq('id', item_id).execute()
+
+        return jsonify({'success': True, 'message': f'{item_type.title()} unshared successfully'})
+    except Exception as e:
+        app.logger.error(f"Error unsharing {item_type}: {str(e)}")
+        return jsonify({'success': False, 'message': f'Failed to unshare {item_type}'}), 500
+
+@app.route('/spherebot/test_query', methods=['POST'])
+@csrf.exempt  # Exempt this route from CSRF protection for testing
+def spherebot_test_query():
+    """Test route for SphereBot queries without login requirement."""
+    try:
+        # Validate request
+        if not request.is_json:
+            print("Request is not JSON")
+            return jsonify({"error": "Request must be JSON"}), 400
+            
+        data = request.get_json()
+        print(f"Received data: {data}")
+        
+        if not data or 'query' not in data:
+            print("Missing query parameter")
+            return jsonify({"error": "Missing query parameter"}), 400
+            
+        query = data['query']
+        if not query or not isinstance(query, str):
+            print(f"Invalid query parameter: {query}")
+            return jsonify({"error": "Invalid query parameter"}), 400
+        
+        # Determine the context based on the query content
+        context_keywords = {
+            "calendar": ["calendar", "schedule", "event", "appointment", "meeting", "remind", "when"],
+            "tasks": ["task", "chore", "assignment", "todo", "to-do", "to do", "work", "job"],
+            "finance": ["money", "budget", "finance", "spending", "expense", "cost", "save", "bill", "payment"],
+            "chat": ["message", "chat", "conversation", "talk", "discuss", "communicate"],
+            "memory": ["photo", "picture", "memory", "album", "remember", "moment", "capture"],
+            "inventory": ["inventory", "item", "stock", "supply", "grocery", "shopping", "list"],
+            "health": ["health", "medication", "medicine", "doctor", "appointment", "prescription"],
+            "emergency": ["emergency", "contact", "urgent", "crisis", "help", "sos"],
+            "family": ["family", "member", "relative", "relationship", "invite", "join"]
+        }
+        
+        context = "general"
+        for ctx, keywords in context_keywords.items():
+            if any(keyword in query.lower() for keyword in keywords):
+                context = ctx
+                break
+                
+        print(f"Determined context: {context}")
+        
+        # Special case for asking why tasks are showing
+        query_lower = query.lower()
+        if "why" in query_lower and ("task" in query_lower or "telling me" in query_lower):
+            return jsonify({
+                "response": "I'm currently in test mode and not connected to your actual database. The tasks I'm showing are just examples to demonstrate how I would display your real tasks when properly connected to your account."
+            })
+        
+        # Handle different contexts with specific responses
+        if context == "tasks":
+            # Check for specific task-related queries
+            if any(term in query_lower for term in ["view", "show", "list", "what are", "pending"]):
+                return jsonify({
+                    "response": "These are sample tasks for demonstration purposes only:\n\n1. Walk the dog (Due today)\n2. Buy groceries (Due tomorrow)\n3. Call mom (Due March 5)\n\nNote: These are not your actual tasks. I'm currently in test mode without access to your real data."
+                })
+            elif any(term in query_lower for term in ["create", "add", "new"]):
+                return jsonify({
+                    "response": "To create a new task, please provide the following details:\n- Task title\n- Due date\n- Assigned to (optional)\n- Priority (optional)\n\nNote: In test mode, tasks won't actually be created in the database."
+                })
+            elif any(term in query_lower for term in ["assign", "distribute", "give"]):
+                return jsonify({
+                    "response": "These are sample family members for demonstration purposes:\n- JP (Admin)\n- Sarah (Member)\n- Kids (Kid)\n\nNote: These may not be your actual family members. I'm currently in test mode."
+                })
+            elif any(term in query_lower for term in ["complete", "mark", "done", "finish"]):
+                return jsonify({
+                    "response": "Which task would you like to mark as complete? Please specify the task name or number from your pending tasks list.\n\nNote: In test mode, tasks won't actually be marked as complete in the database."
+                })
+            else:
+                # General task management options
+                return jsonify({
+                    "response": "Here are some task management options:\n- View your pending tasks\n- Create a new task\n- Assign tasks to family members to distribute responsibilities\n- Mark tasks as completed\n\nNote: I'm currently in test mode and not connected to your actual database."
+                })
+        elif context == "calendar":
+            if any(term in query_lower for term in ["view", "show", "list", "what", "upcoming", "today"]):
+                return jsonify({
+                    "response": "Here are your upcoming events (sample data):\n\n1. Family Dinner (Today, 6:00 PM)\n2. Doctor's Appointment (Tomorrow, 10:00 AM)\n3. Soccer Practice (March 3, 4:30 PM)\n4. Movie Night (March 5, 7:00 PM)\n\nNote: These are example events for demonstration purposes only."
+                })
+            elif any(term in query_lower for term in ["create", "add", "new", "schedule"]):
+                return jsonify({
+                    "response": "To create a new event, please provide the following details:\n- Event title\n- Date\n- Time\n- Location (optional)\n- Description (optional)\n- Attendees (optional)\n\nNote: In test mode, events won't actually be created in the database."
+                })
+            elif any(term in query_lower for term in ["edit", "update", "change", "modify", "reschedule"]):
+                return jsonify({
+                    "response": "Which event would you like to edit? Please specify the event name or number from your upcoming events list.\n\nNote: In test mode, events won't actually be modified in the database."
+                })
+            else:
+                return jsonify({
+                    "response": "Here are some calendar management options:\n- View your upcoming events\n- Create a new event\n- Edit existing events\n- Set reminders for important dates\n\nNote: I'm currently in test mode and not connected to your actual database."
+                })
+        elif context == "finance":
+            if any(term in query_lower for term in ["view", "show", "list", "what", "summary", "overview"]):
+                return jsonify({
+                    "response": "Here's your financial summary (sample data):\n\nBudget: $2,500.00\nSpent this month: $1,200.00\nRemaining: $1,300.00\n\nRecent expenses:\n1. Groceries - $120.00 (Yesterday)\n2. Utilities - $180.00 (Feb 28)\n3. Dining out - $65.00 (Feb 27)\n\nNote: This is example financial data for demonstration purposes only."
+                })
+            elif any(term in query_lower for term in ["add", "new", "expense", "spent", "purchase"]):
+                return jsonify({
+                    "response": "To add a new expense, please provide the following details:\n- Category (e.g., Groceries, Utilities, Entertainment)\n- Amount\n- Date\n- Description (optional)\n\nNote: In test mode, expenses won't actually be added to the database."
+                })
+            elif any(term in query_lower for term in ["budget", "set", "limit", "goal"]):
+                return jsonify({
+                    "response": "To set a budget, please specify:\n- Category (e.g., Groceries, Utilities, Entertainment)\n- Monthly limit\n\nCurrent budget categories (sample):\n- Groceries: $500/month\n- Utilities: $300/month\n- Entertainment: $200/month\n\nNote: In test mode, budgets won't actually be set in the database."
+                })
+            elif any(term in query_lower for term in ["saving", "goal", "target", "plan"]):
+                return jsonify({
+                    "response": "Your current savings goals (sample data):\n\n1. Vacation - $1,500/$3,000 (50% complete)\n2. New Appliances - $800/$1,200 (67% complete)\n3. Emergency Fund - $5,000/$10,000 (50% complete)\n\nYou can add or update savings goals in the Finance section of the app."
+                })
+            elif any(term in query_lower for term in ["report", "analysis", "trend", "spending", "history"]):
+                return jsonify({
+                    "response": "Spending analysis (sample data):\n\nTop categories this month:\n1. Groceries - $450 (36% of budget)\n2. Utilities - $320 (80% of budget)\n3. Entertainment - $200 (67% of budget)\n\nCompared to last month:\n- Groceries: 5% increase\n- Utilities: 2% decrease\n- Entertainment: 15% increase\n\nNote: This is example data for demonstration purposes only."
+                })
+            else:
+                return jsonify({
+                    "response": "I can help you manage your family finances. You can:\n- View your current budget and spending\n- Add new expenses\n- Set or update your budget\n- Track savings goals\n- View spending reports and trends"
+                })
+        elif context == "chat":
+            if any(term in query_lower for term in ["view", "show", "list", "messages", "recent"]):
+                return jsonify({
+                    "response": "Here are your recent messages (sample data):\n\nSarah (10:30 AM): Don't forget to pick up milk on your way home\nKids (11:45 AM): Can we have pizza for dinner?\nYou (12:15 PM): Sure, I'll order it around 5\n\nNote: These are example messages for demonstration purposes only."
+                })
+            elif any(term in query_lower for term in ["send", "message", "text"]):
+                return jsonify({
+                    "response": "Who would you like to send a message to? Available family members (sample):\n- Sarah\n- Kids\n- Mom\n- Dad\n\nNote: In test mode, messages won't actually be sent."
+                })
+            else:
+                return jsonify({
+                    "response": "Here are some chat options:\n- View recent messages\n- Send a new message to family members\n- Create a group chat\n- Share photos or files\n\nNote: I'm currently in test mode and not connected to your actual database."
+                })
+        elif context == "memory":
+            if any(term in query_lower for term in ["view", "show", "list", "photos", "pictures", "albums"]):
+                return jsonify({
+                    "response": "Here are your recent memories (sample data):\n\n1. Family Vacation (15 photos, added Feb 20)\n2. Birthday Party (8 photos, added Feb 15)\n3. Weekend BBQ (5 photos, added Feb 10)\n\nNote: These are example memories for demonstration purposes only."
+                })
+            elif any(term in query_lower for term in ["add", "new", "upload", "create"]):
+                return jsonify({
+                    "response": "To add new memories, please provide:\n- Album name\n- Photos to upload\n- Description (optional)\n- Tags (optional)\n\nNote: In test mode, memories won't actually be added to the database."
+                })
+            else:
+                return jsonify({
+                    "response": "Here are some memory management options:\n- View your photo albums\n- Upload new photos\n- Create themed collections\n- Share memories with family members\n\nNote: I'm currently in test mode and not connected to your actual database."
+                })
+        elif context == "inventory":
+            if any(term in query_lower for term in ["view", "show", "list", "items", "stock"]):
+                return jsonify({
+                    "response": "Here's your current inventory (sample data):\n\nGroceries:\n- Milk (1 gallon, expires in 5 days)\n- Bread (1 loaf, expires in 3 days)\n- Eggs (6 remaining)\n\nHousehold:\n- Paper towels (2 rolls)\n- Laundry detergent (running low)\n\nNote: This is example inventory data for demonstration purposes only."
+                })
+            elif any(term in query_lower for term in ["add", "new", "purchase", "bought"]):
+                return jsonify({
+                    "response": "To add items to your inventory, please provide:\n- Item name\n- Quantity\n- Category (e.g., Groceries, Household)\n- Expiration date (optional)\n\nNote: In test mode, items won't actually be added to the database."
+                })
+            elif any(term in query_lower for term in ["remove", "used", "consumed", "finished"]):
+                return jsonify({
+                    "response": "Which item would you like to remove from inventory? Please specify the item name and quantity.\n\nNote: In test mode, items won't actually be removed from the database."
+                })
+            else:
+                return jsonify({
+                    "response": "Here are some inventory management options:\n- View your current inventory\n- Add new items\n- Remove used items\n- Set up automatic shopping lists\n- Get low stock alerts\n\nNote: I'm currently in test mode and not connected to your actual database."
+                })
+        elif context == "health":
+            if any(term in query_lower for term in ["view", "show", "list", "medications", "prescriptions"]):
+                return jsonify({
+                    "response": "Here are your medications (sample data):\n\n1. Vitamin D (1 pill daily, morning)\n2. Allergy medication (1 pill daily, evening)\n\nUpcoming appointments:\n- Dr. Smith, March 10, 2:00 PM\n\nNote: This is example health data for demonstration purposes only."
+                })
+            elif any(term in query_lower for term in ["add", "new", "medication", "prescription"]):
+                return jsonify({
+                    "response": "To add a new medication reminder, please provide:\n- Medication name\n- Dosage\n- Frequency\n- Time of day\n- Start date\n- End date (optional)\n\nNote: In test mode, medications won't actually be added to the database."
+                })
+            elif any(term in query_lower for term in ["appointment", "schedule", "doctor"]):
+                return jsonify({
+                    "response": "To add a new health appointment, please provide:\n- Doctor/Provider name\n- Date\n- Time\n- Purpose\n- Location\n\nNote: In test mode, appointments won't actually be added to the database."
+                })
+            else:
+                return jsonify({
+                    "response": "Here are some health management options:\n- View your medications\n- Add medication reminders\n- Schedule doctor appointments\n- Track health metrics\n- Set up emergency contacts\n\nNote: I'm currently in test mode and not connected to your actual database."
+                })
+        elif context == "emergency":
+            return jsonify({
+                "response": "Emergency features:\n\n- Set up emergency contacts\n- Share your location with family members\n- Access quick dial for emergency services\n- Store important documents securely\n\nNote: These features are for demonstration purposes only in test mode."
+            })
+        elif context == "family":
+            if any(term in query_lower for term in ["view", "show", "list", "members"]):
+                return jsonify({
+                    "response": "Family members (sample data):\n\n- JP (Admin)\n- Sarah (Member)\n- Kids (Kid)\n\nConnected families:\n- Grandparents\n- Cousins\n\nNote: This is example family data for demonstration purposes only."
+                })
+            elif any(term in query_lower for term in ["add", "invite", "new"]):
+                return jsonify({
+                    "response": "To invite a new family member, please provide:\n- Email address\n- Name\n- Role (Admin, Member, Kid)\n\nAlternatively, you can share your family code: ABC123\n\nNote: In test mode, invitations won't actually be sent."
+                })
+            else:
+                return jsonify({
+                    "response": "Here are some family management options:\n- View family members\n- Invite new members\n- Connect with extended family\n- Manage member roles and permissions\n\nNote: I'm currently in test mode and not connected to your actual database."
+                })
+        else:
+            # General help
+            return jsonify({
+                "response": "I'm SphereBot, your family assistant! I can help with:\n\n- Tasks and chores\n- Calendar and events\n- Family finances\n- Family chat\n- Photo memories\n- Household inventory\n- Health tracking\n- Emergency features\n- Family member management\n\nWhat would you like help with today?\n\nNote: I'm currently in test mode and not connected to your actual database."
+            })
+            
+    except Exception as e:
+        print(f"Exception in spherebot_test_query: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+def get_default_suggestion(context):
+    """Get a default suggestion based on the context."""
+    suggestions = {
+        "calendar": "I can help you manage your family calendar. You can:\n- View upcoming events\n- Add new events\n- Set reminders\n- Share events with family members",
+        "tasks": "I can help you manage family tasks. You can:\n- View pending tasks\n- Create new tasks\n- Assign tasks to family members\n- Mark tasks as completed",
+        "finance": "I can help you manage your family finances. You can:\n- Track expenses\n- Set budgets\n- Monitor spending\n- Set financial goals",
+        "chat": "I can help with family communication. You can:\n- Send messages to family members\n- Create group chats\n- Share updates\n- Stay connected with your loved ones",
+        "memory": "I can help you manage family memories. You can:\n- View photo albums\n- Upload new photos\n- Create collections\n- Share memories with family",
+        "inventory": "I can help you manage household inventory. You can:\n- Track grocery items\n- Manage household supplies\n- Get low stock alerts\n- Create shopping lists",
+        "health": "I can help with family health tracking. You can:\n- Set medication reminders\n- Track appointments\n- Monitor health metrics\n- Store medical information",
+        "emergency": "I can help with family emergency features. You can:\n- Set up emergency contacts\n- Share location\n- Access emergency services\n- Store important documents",
+        "family": "I can help with family management. You can:\n- Add family members\n- Connect with extended family\n- Manage roles and permissions\n- Share updates with loved ones",
+        "general": "I'm SphereBot, your family assistant! I can help with tasks, calendar, finances, chat, memories, inventory, health tracking, and more. What would you like help with today?"
+    }
+    return suggestions.get(context, suggestions["general"])
+
+@app.route('/emergency/plan/add', methods=['POST'])
+@login_required
+def add_emergency_plan():
+    """Add a new emergency plan."""
+    from database import db
+    import uuid
+    from datetime import datetime
+    
+    try:
+        # Get form data
+        title = request.form.get('title')
+        plan_type = request.form.get('plan_type', 'General')  # Fire, Medical, Natural Disaster, etc.
+        description = request.form.get('description', '')
+        meeting_place = request.form.get('meeting_place', '')
+        steps = request.form.get('steps', '')
+        contacts = request.form.getlist('contacts', [])
+        
+        # Validation
+        if not title:
+            flash('Plan title is required.', 'danger')
+            return redirect(url_for('emergency'))
+            
+        # Create plan with UUID
+        plan_id = str(uuid.uuid4())
+        plan_data = {
+            'id': plan_id,
+            'title': title,
+            'plan_type': plan_type,
+            'description': description,
+            'meeting_place': meeting_place,
+            'steps': steps,
+            'family_id': current_user.family_id,
+            'created_by': current_user.id,
+            'created_at': datetime.now().isoformat()
+        }
+        
+        # Insert plan into database
+        db.table('emergency_plans').insert(plan_data).execute()
+        
+        # Link emergency contacts to this plan if provided
+        if contacts:
+            for contact_id in contacts:
+                link_id = str(uuid.uuid4())
+                link_data = {
+                    'id': link_id,
+                    'plan_id': plan_id,
+                    'contact_id': contact_id,
+                    'created_at': datetime.now().isoformat()
+                }
+                db.table('emergency_plan_contacts').insert(link_data).execute()
+        
+        flash('Emergency plan added successfully!', 'success')
+    except Exception as e:
+        flash(f'Error adding emergency plan: {str(e)}', 'danger')
+    
+    return redirect(url_for('emergency'))
+
+@app.route('/emergency/document/add', methods=['POST'])
+@login_required
+def add_emergency_document():
+    """Add a new emergency document."""
+    from database import db
+    import uuid
+    from datetime import datetime
+    
+    try:
+        # Get form data
+        title = request.form.get('title')
+        document_type = request.form.get('document_type', 'General')  # Insurance, Medical, Legal, etc.
+        description = request.form.get('description', '')
+        file_url = request.form.get('file_url', '')  # In a real app, this would be file upload
+        expiration_date = request.form.get('expiration_date', '')
+        applies_to = request.form.getlist('applies_to', [])  # User IDs
+        
+        # Validation
+        if not title:
+            flash('Document title is required.', 'danger')
+            return redirect(url_for('emergency'))
+            
+        # Create document with UUID
+        document_id = str(uuid.uuid4())
+        document_data = {
+            'id': document_id,
+            'title': title,
+            'document_type': document_type,
+            'description': description,
+            'file_url': file_url,
+            'family_id': current_user.family_id,
+            'created_by': current_user.id,
+            'created_at': datetime.now().isoformat()
+        }
+        
+        if expiration_date:
+            document_data['expiration_date'] = expiration_date
+        
+        # Insert document into database
+        db.table('emergency_documents').insert(document_data).execute()
+        
+        # Link document to specific family members if provided
+        if applies_to:
+            for user_id in applies_to:
+                link_id = str(uuid.uuid4())
+                link_data = {
+                    'id': link_id,
+                    'document_id': document_id,
+                    'user_id': user_id,
+                    'created_at': datetime.now().isoformat()
+                }
+                db.table('emergency_document_users').insert(link_data).execute()
+        
+        flash('Emergency document added successfully!', 'success')
+    except Exception as e:
+        flash(f'Error adding emergency document: {str(e)}', 'danger')
+    
+    return redirect(url_for('emergency'))

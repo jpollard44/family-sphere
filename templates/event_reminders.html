@@ -1,0 +1,360 @@
+{% extends 'base.html' %}
+
+{% block title %}Event Reminders - FamilySphere{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1 class="display-5">
+                <i class="fas fa-bell me-2"></i>Event Reminders
+            </h1>
+        </div>
+        <div class="col-md-4 text-md-end">
+            <a href="{{ url_for('calendar') }}" class="btn btn-outline-primary">
+                <i class="fas fa-calendar-alt me-1"></i>Back to Calendar
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Upcoming Reminders</h5>
+                </div>
+                <div class="card-body">
+                    {% if reminders %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Event</th>
+                                        <th>Event Date</th>
+                                        <th>Reminder Time</th>
+                                        <th>Notification</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for reminder in reminders %}
+                                    <tr>
+                                        <td>{{ reminder.title }}</td>
+                                        <td>{{ reminder.event_date.strftime('%b %d, %Y %I:%M %p') }}</td>
+                                        <td>{{ reminder.reminder_time.strftime('%b %d, %Y %I:%M %p') }}</td>
+                                        <td>
+                                            {% if reminder.notification_method == 'app' %}
+                                                <span class="badge bg-primary">App</span>
+                                            {% elif reminder.notification_method == 'email' %}
+                                                <span class="badge bg-info">Email</span>
+                                            {% else %}
+                                                <span class="badge bg-primary">App</span>
+                                                <span class="badge bg-info">Email</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-primary edit-reminder" data-event-id="{{ reminder.event_id }}">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger delete-reminder" data-event-id="{{ reminder.event_id }}">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            You don't have any upcoming reminders.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Reminder Settings</h5>
+                </div>
+                <div class="card-body">
+                    <form id="default-reminder-form">
+                        <div class="mb-3">
+                            <label class="form-label">Default Reminder Time</label>
+                            <select class="form-select" id="default-reminder-time" name="default_reminder_time">
+                                <option value="15">15 minutes before</option>
+                                <option value="30">30 minutes before</option>
+                                <option value="60" selected>1 hour before</option>
+                                <option value="120">2 hours before</option>
+                                <option value="1440">1 day before</option>
+                                <option value="2880">2 days before</option>
+                                <option value="10080">1 week before</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Default Notification Method</label>
+                            <select class="form-select" id="default-notification-method" name="default_notification_method">
+                                <option value="app" selected>In-app notification</option>
+                                <option value="email">Email</option>
+                                <option value="both">Both</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="auto-reminders" name="auto_reminders" checked>
+                            <label class="form-check-label" for="auto-reminders">
+                                Automatically add reminders to new events
+                            </label>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">Save Preferences</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Reminder Modal -->
+<div class="modal fade" id="edit-reminder-modal" tabindex="-1" aria-labelledby="editReminderModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editReminderModalLabel">Edit Reminder</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-reminder-form">
+                    <input type="hidden" id="edit-event-id" name="event_id">
+                    
+                    <div class="mb-3">
+                        <label for="edit-reminder-time" class="form-label">Remind me</label>
+                        <select class="form-select" id="edit-reminder-time" name="reminder_time">
+                            <option value="15">15 minutes before</option>
+                            <option value="30">30 minutes before</option>
+                            <option value="60">1 hour before</option>
+                            <option value="120">2 hours before</option>
+                            <option value="1440">1 day before</option>
+                            <option value="2880">2 days before</option>
+                            <option value="10080">1 week before</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit-notification-method" class="form-label">Notification Method</label>
+                        <select class="form-select" id="edit-notification-method" name="notification_method">
+                            <option value="app">In-app notification</option>
+                            <option value="email">Email</option>
+                            <option value="both">Both</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="save-reminder-btn">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Edit reminder button click
+        document.querySelectorAll('.edit-reminder').forEach(button => {
+            button.addEventListener('click', function() {
+                const eventId = this.getAttribute('data-event-id');
+                document.getElementById('edit-event-id').value = eventId;
+                
+                // Fetch current reminder settings
+                fetch(`/event/${eventId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('edit-reminder-time').value = data.reminder_time || '60';
+                        document.getElementById('edit-notification-method').value = data.notification_method || 'app';
+                        
+                        // Show modal
+                        const modal = new bootstrap.Modal(document.getElementById('edit-reminder-modal'));
+                        modal.show();
+                    })
+                    .catch(error => {
+                        console.error('Error fetching event details:', error);
+                        showToast('Error loading reminder settings', 'danger');
+                    });
+            });
+        });
+        
+        // Delete reminder button click
+        document.querySelectorAll('.delete-reminder').forEach(button => {
+            button.addEventListener('click', function() {
+                if (confirm('Are you sure you want to remove this reminder?')) {
+                    const eventId = this.getAttribute('data-event-id');
+                    
+                    // Update reminder settings (disable reminder)
+                    fetch('/update_reminder_preferences', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken()
+                        },
+                        body: JSON.stringify({
+                            event_id: eventId,
+                            reminder_enabled: false
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showToast('Reminder removed successfully', 'success');
+                            // Reload page to update the list
+                            window.location.reload();
+                        } else {
+                            showToast(`Error: ${data.message}`, 'danger');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error removing reminder:', error);
+                        showToast('Error removing reminder', 'danger');
+                    });
+                }
+            });
+        });
+        
+        // Save reminder changes
+        document.getElementById('save-reminder-btn').addEventListener('click', function() {
+            const eventId = document.getElementById('edit-event-id').value;
+            const reminderTime = document.getElementById('edit-reminder-time').value;
+            const notificationMethod = document.getElementById('edit-notification-method').value;
+            
+            fetch('/update_reminder_preferences', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify({
+                    event_id: eventId,
+                    reminder_enabled: true,
+                    reminder_time: reminderTime,
+                    notification_method: notificationMethod
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Reminder updated successfully', 'success');
+                    // Close modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('edit-reminder-modal'));
+                    modal.hide();
+                    // Reload page to update the list
+                    window.location.reload();
+                } else {
+                    showToast(`Error: ${data.message}`, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error updating reminder:', error);
+                showToast('Error updating reminder', 'danger');
+            });
+        });
+        
+        // Save default reminder preferences
+        document.getElementById('default-reminder-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const defaultReminderTime = document.getElementById('default-reminder-time').value;
+            const defaultNotificationMethod = document.getElementById('default-notification-method').value;
+            const autoReminders = document.getElementById('auto-reminders').checked;
+            
+            // Store preferences in localStorage
+            localStorage.setItem('defaultReminderTime', defaultReminderTime);
+            localStorage.setItem('defaultNotificationMethod', defaultNotificationMethod);
+            localStorage.setItem('autoReminders', autoReminders);
+            
+            showToast('Default reminder preferences saved', 'success');
+        });
+        
+        // Load default reminder preferences
+        const defaultReminderTime = localStorage.getItem('defaultReminderTime');
+        const defaultNotificationMethod = localStorage.getItem('defaultNotificationMethod');
+        const autoReminders = localStorage.getItem('autoReminders');
+        
+        if (defaultReminderTime) {
+            document.getElementById('default-reminder-time').value = defaultReminderTime;
+        }
+        
+        if (defaultNotificationMethod) {
+            document.getElementById('default-notification-method').value = defaultNotificationMethod;
+        }
+        
+        if (autoReminders !== null) {
+            document.getElementById('auto-reminders').checked = autoReminders === 'true';
+        }
+    });
+    
+    // Get CSRF token
+    function getCsrfToken() {
+        const cookieValue = document.cookie
+            .split('; ')
+            .find(row => row.startsWith('csrf_token='))
+            ?.split('=')[1];
+        
+        if (cookieValue) {
+            return cookieValue;
+        }
+        
+        const metaTag = document.querySelector('meta[name="csrf-token"]');
+        return metaTag ? metaTag.getAttribute('content') : '';
+    }
+    
+    // Show toast notification
+    function showToast(message, type = 'info') {
+        // Create toast container if it doesn't exist
+        let toastContainer = document.getElementById('toast-container');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.id = 'toast-container';
+            document.body.appendChild(toastContainer);
+        }
+        
+        // Create toast element
+        const toastId = 'toast-' + Date.now();
+        const toast = document.createElement('div');
+        toast.className = `toast align-items-center border-0 bg-${type}`;
+        toast.id = toastId;
+        toast.setAttribute('role', 'alert');
+        toast.setAttribute('aria-live', 'assertive');
+        toast.setAttribute('aria-atomic', 'true');
+        
+        // Create toast content
+        toast.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body text-white">
+                    ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        `;
+        
+        // Add toast to container
+        toastContainer.appendChild(toast);
+        
+        // Initialize and show toast
+        const bsToast = new bootstrap.Toast(toast, {
+            autohide: true,
+            delay: 5000
+        });
+        bsToast.show();
+        
+        // Remove toast after it's hidden
+        toast.addEventListener('hidden.bs.toast', function() {
+            toast.remove();
+        });
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,430 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block styles %}
+<style>
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+        
+        body {
+            font-size: 12pt;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 100%;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .card {
+            border: none;
+            box-shadow: none;
+        }
+        
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .table th {
+            background-color: #f8f9fa !important;
+            color: #000 !important;
+        }
+        
+        .table td, .table th {
+            border: 1px solid #ddd !important;
+        }
+        
+        a {
+            text-decoration: none !important;
+            color: #000 !important;
+        }
+        
+        .event-category {
+            font-style: italic;
+        }
+        
+        .event-time {
+            font-weight: bold;
+        }
+        
+        .event-location {
+            color: #666;
+        }
+        
+        .page-break {
+            page-break-after: always;
+        }
+    }
+    
+    .event-card {
+        margin-bottom: 10px;
+        border-left: 4px solid #4285F4;
+        padding-left: 10px;
+    }
+    
+    .event-card.family { border-left-color: #4285F4; }
+    .event-card.work { border-left-color: #EA4335; }
+    .event-card.school { border-left-color: #FBBC05; }
+    .event-card.sports { border-left-color: #34A853; }
+    .event-card.health { border-left-color: #8E24AA; }
+    .event-card.social { border-left-color: #FB8C00; }
+    .event-card.other { border-left-color: #9E9E9E; }
+    
+    .event-time {
+        font-weight: bold;
+    }
+    
+    .event-title {
+        font-weight: bold;
+    }
+    
+    .event-location {
+        color: #666;
+        font-size: 0.9em;
+    }
+    
+    .event-description {
+        margin-top: 5px;
+        font-size: 0.9em;
+    }
+    
+    .event-category {
+        font-style: italic;
+        color: #666;
+        font-size: 0.85em;
+    }
+    
+    .event-creator {
+        font-size: 0.85em;
+        color: #666;
+    }
+    
+    .shared-event {
+        border-right: 4px solid #FF5722;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4 no-print">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h1 class="h3 mb-0">{{ title }}</h1>
+                        <div>
+                            <button class="btn btn-primary" onclick="window.print()">
+                                <i class="fas fa-print"></i> Print
+                            </button>
+                            <a href="{{ url_for('calendar') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Back to Calendar
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h1 class="h3 mb-4">{{ title }}</h1>
+                    
+                    {% if view_type == 'month' %}
+                        {# Month view - group by date #}
+                        {% for date, date_events in events_by_date.items() %}
+                            <div class="mb-4">
+                                <h3 class="h5 mb-3 border-bottom pb-2">
+                                    {{ date_events[0].start.split('T')[0] if 'T' in date_events[0].start else date_events[0].start | date_format }}
+                                </h3>
+                                
+                                {% for event in date_events %}
+                                    <div class="event-card mb-3 {% if event.extendedProps.category %}{{ event.extendedProps.category | lower }}{% endif %} {% if not event.extendedProps.family_id == current_user.family_id %}shared-event{% endif %}">
+                                        <div class="event-time">
+                                            {% if event.allDay %}
+                                                All Day
+                                            {% else %}
+                                                {{ event.start.split('T')[1] | time_format if 'T' in event.start else '' }}
+                                                {% if event.end and 'T' in event.end %}
+                                                    - {{ event.end.split('T')[1] | time_format }}
+                                                {% endif %}
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <div class="event-title">{{ event.title }}</div>
+                                        
+                                        {% if event.extendedProps.location %}
+                                            <div class="event-location">
+                                                <i class="fas fa-map-marker-alt"></i> {{ event.extendedProps.location }}
+                                            </div>
+                                        {% endif %}
+                                        
+                                        {% if event.extendedProps.description %}
+                                            <div class="event-description">{{ event.extendedProps.description }}</div>
+                                        {% endif %}
+                                        
+                                        <div class="d-flex justify-content-between">
+                                            <div class="event-category">
+                                                {% if event.extendedProps.category %}
+                                                    <i class="fas fa-tag"></i> {{ event.extendedProps.category }}
+                                                {% endif %}
+                                            </div>
+                                            
+                                            <div class="event-creator">
+                                                {% if event.extendedProps.created_by and event.extendedProps.created_by in member_lookup %}
+                                                    <i class="fas fa-user"></i> {{ member_lookup[event.extendedProps.created_by] }}
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            
+                            {% if not loop.last %}
+                                <hr>
+                            {% endif %}
+                        {% endfor %}
+                    {% elif view_type == 'list' %}
+                        {# List view - simple table #}
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Time</th>
+                                    <th>Event</th>
+                                    <th>Location</th>
+                                    <th>Category</th>
+                                    <th>Created By</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for event in events %}
+                                    <tr>
+                                        <td>
+                                            {{ event.start.split('T')[0] if 'T' in event.start else event.start | date_format }}
+                                        </td>
+                                        <td>
+                                            {% if event.allDay %}
+                                                All Day
+                                            {% else %}
+                                                {{ event.start.split('T')[1] | time_format if 'T' in event.start else '' }}
+                                                {% if event.end and 'T' in event.end %}
+                                                    - {{ event.end.split('T')[1] | time_format }}
+                                                {% endif %}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <strong>{{ event.title }}</strong>
+                                            {% if event.extendedProps.description %}
+                                                <div class="small">{{ event.extendedProps.description }}</div>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ event.extendedProps.location }}</td>
+                                        <td>{{ event.extendedProps.category }}</td>
+                                        <td>
+                                            {% if event.extendedProps.created_by and event.extendedProps.created_by in member_lookup %}
+                                                {{ member_lookup[event.extendedProps.created_by] }}
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% elif view_type == 'day' %}
+                        {# Day view - detailed list for a single day #}
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th width="15%">Time</th>
+                                    <th width="30%">Event</th>
+                                    <th width="20%">Location</th>
+                                    <th width="15%">Category</th>
+                                    <th width="20%">Details</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for event in events %}
+                                    <tr>
+                                        <td>
+                                            {% if event.allDay %}
+                                                <strong>All Day</strong>
+                                            {% else %}
+                                                <strong>
+                                                    {{ event.start.split('T')[1] | time_format if 'T' in event.start else '' }}
+                                                    {% if event.end and 'T' in event.end %}
+                                                        - {{ event.end.split('T')[1] | time_format }}
+                                                    {% endif %}
+                                                </strong>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <strong>{{ event.title }}</strong>
+                                        </td>
+                                        <td>{{ event.extendedProps.location }}</td>
+                                        <td>{{ event.extendedProps.category }}</td>
+                                        <td>
+                                            {% if event.extendedProps.description %}
+                                                <div class="small">{{ event.extendedProps.description }}</div>
+                                            {% endif %}
+                                            
+                                            {% if event.extendedProps.created_by and event.extendedProps.created_by in member_lookup %}
+                                                <div class="small text-muted">
+                                                    <i class="fas fa-user"></i> {{ member_lookup[event.extendedProps.created_by] }}
+                                                </div>
+                                            {% endif %}
+                                            
+                                            {% if not event.extendedProps.family_id == current_user.family_id %}
+                                                <div class="small text-danger">
+                                                    <i class="fas fa-share-alt"></i> Shared Event
+                                                </div>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        {# Week view - grouped by day with timeline #}
+                        {% for date, date_events in events_by_date.items() %}
+                            <div class="mb-4 {% if not loop.last %}page-break{% endif %}">
+                                <h3 class="h5 mb-3 border-bottom pb-2">
+                                    {{ date_events[0].start.split('T')[0] if 'T' in date_events[0].start else date_events[0].start | date_format }}
+                                </h3>
+                                
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th width="15%">Time</th>
+                                            <th width="85%">Events</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% set all_day_events = [] %}
+                                        {% for event in date_events %}
+                                            {% if event.allDay %}
+                                                {% set _ = all_day_events.append(event) %}
+                                            {% endif %}
+                                        {% endfor %}
+                                        
+                                        {% if all_day_events %}
+                                            <tr>
+                                                <td><strong>All Day</strong></td>
+                                                <td>
+                                                    {% for event in all_day_events %}
+                                                        <div class="event-card mb-2 {% if event.extendedProps.category %}{{ event.extendedProps.category | lower }}{% endif %} {% if not event.extendedProps.family_id == current_user.family_id %}shared-event{% endif %}">
+                                                            <div class="event-title">{{ event.title }}</div>
+                                                            
+                                                            {% if event.extendedProps.location %}
+                                                                <div class="event-location">
+                                                                    <i class="fas fa-map-marker-alt"></i> {{ event.extendedProps.location }}
+                                                                </div>
+                                                            {% endif %}
+                                                            
+                                                            <div class="d-flex justify-content-between">
+                                                                <div class="event-category">
+                                                                    {% if event.extendedProps.category %}
+                                                                        <i class="fas fa-tag"></i> {{ event.extendedProps.category }}
+                                                                    {% endif %}
+                                                                </div>
+                                                                
+                                                                <div class="event-creator">
+                                                                    {% if event.extendedProps.created_by and event.extendedProps.created_by in member_lookup %}
+                                                                        <i class="fas fa-user"></i> {{ member_lookup[event.extendedProps.created_by] }}
+                                                                    {% endif %}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    {% endfor %}
+                                                </td>
+                                            </tr>
+                                        {% endif %}
+                                        
+                                        {% set timed_events = [] %}
+                                        {% for event in date_events %}
+                                            {% if not event.allDay %}
+                                                {% set _ = timed_events.append(event) %}
+                                            {% endif %}
+                                        {% endfor %}
+                                        
+                                        {% for hour in range(7, 23) %}
+                                            {% set hour_events = [] %}
+                                            {% for event in timed_events %}
+                                                {% if 'T' in event.start %}
+                                                    {% set event_hour = event.start.split('T')[1].split(':')[0] | int %}
+                                                    {% if event_hour == hour %}
+                                                        {% set _ = hour_events.append(event) %}
+                                                    {% endif %}
+                                                {% endif %}
+                                            {% endfor %}
+                                            
+                                            <tr>
+                                                <td>{{ '%02d' % hour }}:00</td>
+                                                <td>
+                                                    {% for event in hour_events %}
+                                                        <div class="event-card mb-2 {% if event.extendedProps.category %}{{ event.extendedProps.category | lower }}{% endif %} {% if not event.extendedProps.family_id == current_user.family_id %}shared-event{% endif %}">
+                                                            <div class="event-time">
+                                                                {{ event.start.split('T')[1] | time_format if 'T' in event.start else '' }}
+                                                                {% if event.end and 'T' in event.end %}
+                                                                    - {{ event.end.split('T')[1] | time_format }}
+                                                                {% endif %}
+                                                            </div>
+                                                            
+                                                            <div class="event-title">{{ event.title }}</div>
+                                                            
+                                                            {% if event.extendedProps.location %}
+                                                                <div class="event-location">
+                                                                    <i class="fas fa-map-marker-alt"></i> {{ event.extendedProps.location }}
+                                                                </div>
+                                                            {% endif %}
+                                                            
+                                                            <div class="d-flex justify-content-between">
+                                                                <div class="event-category">
+                                                                    {% if event.extendedProps.category %}
+                                                                        <i class="fas fa-tag"></i> {{ event.extendedProps.category }}
+                                                                    {% endif %}
+                                                                </div>
+                                                                
+                                                                <div class="event-creator">
+                                                                    {% if event.extendedProps.created_by and event.extendedProps.created_by in member_lookup %}
+                                                                        <i class="fas fa-user"></i> {{ member_lookup[event.extendedProps.created_by] }}
+                                                                    {% endif %}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    {% endfor %}
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Auto-print when the page loads if the print parameter is set
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('autoprint') === 'true') {
+            setTimeout(function() {
+                window.print();
+            }, 1000);
+        }
+    });
+</script>
+{% endblock %}

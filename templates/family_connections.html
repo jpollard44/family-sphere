@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}Family Connections - FamilySphere{% endblock %}
+
+{% block styles %}
+<style>
+    .family-card, .request-card {
+        transition: all 0.3s ease;
+    }
+    .family-card:hover, .request-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .connection-stats {
+        background: linear-gradient(135deg, #6e8efb, #4a6cf7);
+        color: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    .search-box {
+        position: relative;
+        margin-bottom: 20px;
+    }
+    .search-box i {
+        position: absolute;
+        left: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+    }
+    .search-box input {
+        padding-left: 35px;
+    }
+    .tab-content {
+        padding-top: 20px;
+    }
+    .shared-badge {
+        font-size: 0.8em;
+        padding: 3px 8px;
+        margin-left: 5px;
+        background-color: #e9ecef;
+        border-radius: 12px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="mb-4">Family Connections</h1>
+            
+            <!-- Connection Stats -->
+            <div class="connection-stats">
+                <div class="row text-center">
+                    <div class="col-md-4">
+                        <h3 id="connected-count">0</h3>
+                        <p>Connected Families</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h3 id="pending-count">0</h3>
+                        <p>Pending Requests</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h3 id="shared-items-count">0</h3>
+                        <p>Shared Items</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Navigation Tabs -->
+    <ul class="nav nav-tabs" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link active" id="connected-tab" data-bs-toggle="tab" href="#connected" role="tab">
+                Connected Families
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="requests-tab" data-bs-toggle="tab" href="#requests" role="tab">
+                Connection Requests
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="find-tab" data-bs-toggle="tab" href="#find" role="tab">
+                Find Families
+            </a>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content">
+        <!-- Connected Families Tab -->
+        <div class="tab-pane fade show active" id="connected" role="tabpanel">
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="family-search" class="form-control" placeholder="Search connected families...">
+            </div>
+            <div id="connected-families" class="row">
+                <!-- Connected families will be loaded here -->
+            </div>
+        </div>
+
+        <!-- Connection Requests Tab -->
+        <div class="tab-pane fade" id="requests" role="tabpanel">
+            <div id="pending-requests">
+                <!-- Pending requests will be loaded here -->
+            </div>
+        </div>
+
+        <!-- Find Families Tab -->
+        <div class="tab-pane fade" id="find" role="tabpanel">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Connect with Another Family</h5>
+                    <p class="card-text">Enter the family code to send a connection request.</p>
+                    <form id="connect-form" class="row g-3">
+                        <div class="col-md-8">
+                            <input type="text" class="form-control" id="family-code" 
+                                   placeholder="Enter family code" required>
+                        </div>
+                        <div class="col-md-4">
+                            <button type="submit" class="btn btn-primary w-100">
+                                Send Request
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Share Item Modal -->
+<div class="modal fade" id="share-families-modal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Share with Families</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="share-families-list">
+                    <!-- Connected families list will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirm-share">Share</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sharing Settings Modal -->
+<div class="modal fade" id="sharing-settings-modal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Sharing Settings</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="sharing-settings-form">
+                    <div class="mb-3">
+                        <label class="form-label">Share by Default:</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="share-events">
+                            <label class="form-check-label" for="share-events">Events</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="share-tasks">
+                            <label class="form-check-label" for="share-tasks">Tasks</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="share-photos">
+                            <label class="form-check-label" for="share-photos">Photos</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="share-shopping">
+                            <label class="form-check-label" for="share-shopping">Shopping Lists</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="share-emergency">
+                            <label class="form-check-label" for="share-emergency">Emergency Contacts</label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="save-sharing-settings">Save Settings</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Pass the current family ID to JavaScript
+    const currentFamilyId = "{{ current_user.family_id }}";
+</script>
+<script src="{{ url_for('static', filename='js/family_connections.js') }}"></script>
+{% endblock %}

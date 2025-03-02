@@ -19,6 +19,12 @@ app.config['WTF_CSRF_METHODS'] = ['POST', 'PUT', 'PATCH', 'DELETE']
 # Initialize CSRF protection
 csrf = CSRFProtect(app)
 
+# Load Grok API settings from settings.py
+from settings import Config
+app.config['GROK_API_KEY'] = Config.GROK_API_KEY
+app.config['GROK_API_URL'] = Config.GROK_API_URL
+app.config['GROK_MODEL'] = Config.GROK_MODEL
+
 # Initialize login manager
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
@@ -49,4 +55,4 @@ def load_user(user_id):
 if __name__ == '__main__':
     debug_mode = os.environ.get('FLASK_ENV', 'development') == 'development'
     port = int(os.environ.get('PORT', 8089))
-    app.run(debug=debug_mode, host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=debug_mode)

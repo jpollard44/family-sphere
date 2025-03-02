@@ -1,0 +1,392 @@
+{% extends 'base.html' %}
+
+{% block title %}Calendar Templates{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h1 class="h3 mb-0">Calendar Event Templates</h1>
+                    <a href="{{ url_for('calendar') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-arrow-left"></i> Back to Calendar
+                    </a>
+                </div>
+                <div class="card-body">
+                    <p class="lead">
+                        Create and manage templates for common family events. Templates make it easy to quickly add recurring events with consistent details.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Create New Template</h5>
+                </div>
+                <div class="card-body">
+                    <form id="template-form" action="{{ url_for('save_calendar_template') }}" method="post">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="template_id" id="template_id" value="">
+                        
+                        <div class="mb-3">
+                            <label for="template_name" class="form-label">Template Name</label>
+                            <input type="text" class="form-control" id="template_name" name="template_name" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="event_title" class="form-label">Event Title</label>
+                            <input type="text" class="form-control" id="event_title" name="event_title" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="event_category" class="form-label">Category</label>
+                            <select class="form-select" id="event_category" name="event_category">
+                                <option value="Family">Family</option>
+                                <option value="Work">Work</option>
+                                <option value="School">School</option>
+                                <option value="Health">Health</option>
+                                <option value="Social">Social</option>
+                                <option value="Sports">Sports</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="event_location" class="form-label">Location</label>
+                            <input type="text" class="form-control" id="event_location" name="event_location">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="event_description" class="form-label">Description</label>
+                            <textarea class="form-control" id="event_description" name="event_description" rows="3"></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="all_day" name="all_day">
+                                <label class="form-check-label" for="all_day">
+                                    All Day Event
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3" id="time-inputs">
+                            <div class="col-6">
+                                <label for="event_time" class="form-label">Start Time</label>
+                                <input type="time" class="form-control" id="event_time" name="event_time">
+                            </div>
+                            <div class="col-6">
+                                <label for="event_end_time" class="form-label">End Time</label>
+                                <input type="time" class="form-control" id="event_end_time" name="event_end_time">
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="recurrence_pattern" class="form-label">Default Recurrence</label>
+                            <select class="form-select" id="recurrence_pattern" name="recurrence_pattern">
+                                <option value="">None (Single Event)</option>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="biweekly">Bi-Weekly</option>
+                                <option value="monthly">Monthly</option>
+                                <option value="yearly">Yearly</option>
+                            </select>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">Save Template</button>
+                            <button type="button" class="btn btn-outline-secondary" id="reset-form">Reset Form</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Your Templates</h5>
+                </div>
+                <div class="card-body">
+                    {% if templates %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Template Name</th>
+                                        <th>Event Title</th>
+                                        <th>Category</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for template in templates %}
+                                    <tr>
+                                        <td>{{ template.template_name }}</td>
+                                        <td>{{ template.event_title }}</td>
+                                        <td>
+                                            <span class="badge bg-{{ template.event_category|lower }}">
+                                                {{ template.event_category }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <button type="button" class="btn btn-outline-primary edit-template" 
+                                                        data-template-id="{{ template.id }}"
+                                                        data-template-name="{{ template.template_name }}"
+                                                        data-event-title="{{ template.event_title }}"
+                                                        data-event-category="{{ template.event_category }}"
+                                                        data-event-location="{{ template.event_location }}"
+                                                        data-event-description="{{ template.event_description }}"
+                                                        data-all-day="{{ template.all_day }}"
+                                                        data-event-time="{{ template.event_time }}"
+                                                        data-event-end-time="{{ template.event_end_time }}"
+                                                        data-recurrence-pattern="{{ template.recurrence_pattern }}">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <a href="{{ url_for('use_calendar_template', template_id=template.id) }}" class="btn btn-outline-success">
+                                                    <i class="fas fa-plus"></i>
+                                                </a>
+                                                <button type="button" class="btn btn-outline-danger delete-template" 
+                                                        data-template-id="{{ template.id }}"
+                                                        data-template-name="{{ template.template_name }}">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i> You haven't created any templates yet. Create your first template to get started!
+                        </div>
+                        
+                        <div class="row mt-4">
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-body">
+                                        <h5 class="card-title">Family Dinner</h5>
+                                        <p class="card-text">Create a template for regular family dinners.</p>
+                                        <button class="btn btn-sm btn-outline-primary create-sample-template" 
+                                                data-template-name="Family Dinner"
+                                                data-event-title="Family Dinner"
+                                                data-event-category="Family"
+                                                data-event-location="Home"
+                                                data-event-description="Regular family dinner time"
+                                                data-all-day="false"
+                                                data-event-time="18:00"
+                                                data-event-end-time="19:30"
+                                                data-recurrence-pattern="daily">
+                                            Use This Template
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-body">
+                                        <h5 class="card-title">School Pickup</h5>
+                                        <p class="card-text">Create a template for school pickup times.</p>
+                                        <button class="btn btn-sm btn-outline-primary create-sample-template" 
+                                                data-template-name="School Pickup"
+                                                data-event-title="School Pickup"
+                                                data-event-category="School"
+                                                data-event-location="School"
+                                                data-event-description="Pick up the kids from school"
+                                                data-all-day="false"
+                                                data-event-time="15:00"
+                                                data-event-end-time="15:30"
+                                                data-recurrence-pattern="weekly">
+                                            Use This Template
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-body">
+                                        <h5 class="card-title">Family Game Night</h5>
+                                        <p class="card-text">Create a template for family game nights.</p>
+                                        <button class="btn btn-sm btn-outline-primary create-sample-template" 
+                                                data-template-name="Family Game Night"
+                                                data-event-title="Family Game Night"
+                                                data-event-category="Family"
+                                                data-event-location="Living Room"
+                                                data-event-description="Weekly family game night - fun for everyone!"
+                                                data-all-day="false"
+                                                data-event-time="19:00"
+                                                data-event-end-time="21:00"
+                                                data-recurrence-pattern="weekly">
+                                            Use This Template
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-body">
+                                        <h5 class="card-title">Doctor Appointment</h5>
+                                        <p class="card-text">Create a template for doctor appointments.</p>
+                                        <button class="btn btn-sm btn-outline-primary create-sample-template" 
+                                                data-template-name="Doctor Appointment"
+                                                data-event-title="Doctor Appointment"
+                                                data-event-category="Health"
+                                                data-event-location="Doctor's Office"
+                                                data-event-description="Regular checkup appointment"
+                                                data-all-day="false"
+                                                data-event-time="10:00"
+                                                data-event-end-time="11:00"
+                                                data-recurrence-pattern="">
+                                            Use This Template
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Template Confirmation Modal -->
+<div class="modal fade" id="deleteTemplateModal" tabindex="-1" aria-labelledby="deleteTemplateModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteTemplateModalLabel">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the template "<span id="delete-template-name"></span>"?</p>
+                <p class="text-danger">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="delete-template-form" action="{{ url_for('delete_calendar_template') }}" method="post">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="template_id" id="delete_template_id">
+                    <button type="submit" class="btn btn-danger">Delete Template</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Toggle time inputs based on all-day checkbox
+        const allDayCheckbox = document.getElementById('all_day');
+        const timeInputs = document.getElementById('time-inputs');
+        
+        function toggleTimeInputs() {
+            if (allDayCheckbox.checked) {
+                timeInputs.style.display = 'none';
+            } else {
+                timeInputs.style.display = 'flex';
+            }
+        }
+        
+        allDayCheckbox.addEventListener('change', toggleTimeInputs);
+        toggleTimeInputs();
+        
+        // Reset form button
+        document.getElementById('reset-form').addEventListener('click', function() {
+            document.getElementById('template-form').reset();
+            document.getElementById('template_id').value = '';
+            toggleTimeInputs();
+        });
+        
+        // Edit template buttons
+        document.querySelectorAll('.edit-template').forEach(button => {
+            button.addEventListener('click', function() {
+                const templateId = this.getAttribute('data-template-id');
+                const templateName = this.getAttribute('data-template-name');
+                const eventTitle = this.getAttribute('data-event-title');
+                const eventCategory = this.getAttribute('data-event-category');
+                const eventLocation = this.getAttribute('data-event-location');
+                const eventDescription = this.getAttribute('data-event-description');
+                const allDay = this.getAttribute('data-all-day') === 'true';
+                const eventTime = this.getAttribute('data-event-time');
+                const eventEndTime = this.getAttribute('data-event-end-time');
+                const recurrencePattern = this.getAttribute('data-recurrence-pattern');
+                
+                document.getElementById('template_id').value = templateId;
+                document.getElementById('template_name').value = templateName;
+                document.getElementById('event_title').value = eventTitle;
+                document.getElementById('event_category').value = eventCategory;
+                document.getElementById('event_location').value = eventLocation;
+                document.getElementById('event_description').value = eventDescription;
+                document.getElementById('all_day').checked = allDay;
+                document.getElementById('event_time').value = eventTime;
+                document.getElementById('event_end_time').value = eventEndTime;
+                document.getElementById('recurrence_pattern').value = recurrencePattern;
+                
+                toggleTimeInputs();
+                
+                // Scroll to form
+                document.getElementById('template-form').scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+        
+        // Delete template buttons
+        document.querySelectorAll('.delete-template').forEach(button => {
+            button.addEventListener('click', function() {
+                const templateId = this.getAttribute('data-template-id');
+                const templateName = this.getAttribute('data-template-name');
+                
+                document.getElementById('delete_template_id').value = templateId;
+                document.getElementById('delete-template-name').textContent = templateName;
+                
+                const deleteModal = new bootstrap.Modal(document.getElementById('deleteTemplateModal'));
+                deleteModal.show();
+            });
+        });
+        
+        // Sample template buttons
+        document.querySelectorAll('.create-sample-template').forEach(button => {
+            button.addEventListener('click', function() {
+                const templateName = this.getAttribute('data-template-name');
+                const eventTitle = this.getAttribute('data-event-title');
+                const eventCategory = this.getAttribute('data-event-category');
+                const eventLocation = this.getAttribute('data-event-location');
+                const eventDescription = this.getAttribute('data-event-description');
+                const allDay = this.getAttribute('data-all-day') === 'true';
+                const eventTime = this.getAttribute('data-event-time');
+                const eventEndTime = this.getAttribute('data-event-end-time');
+                const recurrencePattern = this.getAttribute('data-recurrence-pattern');
+                
+                document.getElementById('template_name').value = templateName;
+                document.getElementById('event_title').value = eventTitle;
+                document.getElementById('event_category').value = eventCategory;
+                document.getElementById('event_location').value = eventLocation;
+                document.getElementById('event_description').value = eventDescription;
+                document.getElementById('all_day').checked = allDay;
+                document.getElementById('event_time').value = eventTime;
+                document.getElementById('event_end_time').value = eventEndTime;
+                document.getElementById('recurrence_pattern').value = recurrencePattern;
+                
+                toggleTimeInputs();
+                
+                // Scroll to form
+                document.getElementById('template-form').scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+    });
+</script>
+{% endblock %}

@@ -24,9 +24,9 @@ class Config:
     
     # SphereBot AI settings
     SPHEREBOT_ENABLED = True
-    LLM_API_KEY = os.environ.get('LLM_API_KEY')
-    LLM_API_URL = os.environ.get('LLM_API_URL') or 'https://api.openai.com/v1/chat/completions'
-    LLM_MODEL = os.environ.get('LLM_MODEL') or 'gpt-3.5-turbo'
+    GROK_API_KEY = os.environ.get('GROK_API_KEY') or 'xai-Tko4SwhVpHl4cIh36vvMxdRTdGCA2h3IXiZCUtuXEHBqOVSqT01t5VCEHmQy3bnvYPXVKgUaYzM7ywJx'
+    GROK_API_URL = os.environ.get('GROK_API_URL') or 'https://api.x.ai/v1/chat/completions'
+    GROK_MODEL = os.environ.get('GROK_MODEL') or 'grok-2-latest'
     
     # Email settings (for notifications and password reset)
     MAIL_SERVER = os.environ.get('MAIL_SERVER')
